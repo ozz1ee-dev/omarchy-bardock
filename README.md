@@ -137,7 +137,7 @@ omarchy plugin remove ozz1ee.bardock --yes
 Tests run on plain Node, no dependencies:
 
 ```sh
-node --test test/*.test.js   # 48 tests over the pure geometry and layout logic
+node --test test/*.test.js   # 52 tests over the pure geometry and layout logic
 omarchy plugin validate .   # the manifest contract
 ```
 
@@ -146,10 +146,14 @@ pure functions with no Qt in them, which is why they can be tested from a
 terminal. The QML side is `BarDock.qml` (widget, drawer, drags), `DockTile.qml`
 (one docked icon), `DockGhost.qml` (the drag ghost) and `Chevron.qml` (the mark).
 
-To develop against a checkout instead of an installed copy:
+To develop against a checkout instead of an installed copy, link the repository
+into the shell's plugin directory and put it on the bar:
 
 ```sh
-./dev-install.sh --bar      # symlinks this directory into ~/.config/omarchy/plugins
+ln -sfn "$PWD" ~/.config/omarchy/plugins/ozz1ee.bardock
+omarchy plugin validate ~/.config/omarchy/plugins/ozz1ee.bardock
+omarchy bar move ozz1ee.bardock --section right --index 99
+omarchy restart shell
 ```
 
 ## What this is not

@@ -1,5 +1,14 @@
 # Bar dock
 
+## 0.7.7 - beta
+
+- The development helper script is gone. It only linked a checkout into the shell's
+  plugin directory and optionally put the widget on the bar, and the two commands are
+  now documented inline in the README. Shipping it meant shipping a file shaped like an
+  installer, which parks a submission in a manual security review for no reason: nothing
+  in this repository installs anything.
+
+
 ## 0.7.6 - beta
 
 - Fix: dragging an icon onto the chevron now **lands it in the drawer every time**.
