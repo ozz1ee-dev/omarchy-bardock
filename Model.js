@@ -235,9 +235,12 @@ function undockFrom(config, ownId, id, section, beforeName) {
   }
   if (at !== -1) {
     entries.splice(at, 0, entry)
-  } else if (before !== "" && target === own.section) {
-    // The remembered anchor is gone (it is docked too): land in front of us
-    // rather than at the far end of the bar.
+  } else if (target === own.section) {
+    // No anchor we can use: either one was never recorded (the icon was parked)
+    // or the remembered one is docked too. Land in front of us instead of
+    // appending to the far end of the bar - an undocked icon belongs next to the
+    // drawer it came out of, and pushing it past the chevron would also push the
+    // chevron itself out of the corner it is supposed to sit in.
     entries.splice(Math.min(own.index, entries.length), 0, entry)
   } else {
     entries.push(entry)
@@ -369,13 +372,30 @@ function pointInAnyRect(point, rects) {
 // edge of the chevron's slot (which grows during a drag) to the screen edge,
 // plus the square itself, so a drop aimed roughly at the corner counts wherever
 // the bar's own nearest-slot resolution happened to land.
+// Where a drop counts as docking: the chevron's own slot, optionally widened by
+// `slack` on every side, plus the square when the drawer is open.
+//
+// An earlier revision ran the bar part of the zone from the chevron's slot all the
+// way to the screen edge, which also covered the last widget or two on the bar. That
+// is wrong in use: dragging an icon along the bar opened the drawer and could dock the
+// icon when the pointer was still over a neighbour, so ordinary reordering felt
+// unreliable. The zone is the slot itself unless the user asks for a bigger pocket
+// (`dockZoneSlack`, 0 by default).
 function dockZoneRects(slotScreenX, slotScreenY, slotWidth, slotHeight, screenWidth, squareRect, slack) {
   var pad = Math.max(0, Math.floor(Number(slack) || 0))
+  var slotX = Math.max(0, Math.floor(Number(slotScreenX) || 0))
+  var slotY = Math.max(0, Math.floor(Number(slotScreenY) || 0))
+  var slotW = Math.max(1, Math.floor(Number(slotWidth) || 0))
+  var slotH = Math.max(1, Math.floor(Number(slotHeight) || 0))
+  var left = Math.max(0, slotX - pad)
+  var width = slotW + pad * 2
+  var screen = Math.floor(Number(screenWidth) || 0)
+  if (screen > 0 && left + width > screen) width = Math.max(1, screen - left)
   var rects = [{
-    x: Math.max(0, slotScreenX - pad),
-    y: Math.max(0, slotScreenY - pad),
-    width: Math.max(1, screenWidth - Math.max(0, slotScreenX - pad)),
-    height: Math.max(1, slotHeight + pad * 2)
+    x: left,
+    y: Math.max(0, slotY - pad),
+    width: width,
+    height: slotH + pad * 2
   }]
   if (squareRect) rects.push(squareRect)
   return rects

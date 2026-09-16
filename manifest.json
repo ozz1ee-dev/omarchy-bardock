@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ozz1ee.bardock",
   "name": "Bar dock",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "author": "ozz1ee",
   "license": "MIT",
   "description": "One chevron in the corner of the bar that opens a square dock for the icons you keep off the bar. Drop an icon on the chevron to dock it, drag it out again to put it back.",
@@ -30,7 +30,7 @@
       "maxSide": 0,
       "dockOnNeighbourDrop": true,
       "armMs": 2500,
-      "dockZoneSlack": 56,
+      "dockZoneSlack": 0,
       "minCell": 20,
       "dragStallMs": 10000
     },
@@ -67,8 +67,8 @@
         "key": "dockZoneSlack",
         "type": "number",
         "label": "Dock zone width (px)",
-        "defaultValue": 56,
-        "description": "How far along the bar, to the left of the chevron, a drop still docks. 0 means the chevron's own slot only."
+        "defaultValue": 0,
+        "description": "How much room around the chevron still counts as a dock drop, and when the drawer opens during a bar drag. 0 (default) means the chevron's own slot only, so dragging icons along the bar is never disturbed."
       },
       {
         "key": "armMs",

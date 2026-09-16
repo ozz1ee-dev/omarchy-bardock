@@ -77,12 +77,16 @@ Two details that took a while to get right:
 
 The chevron is an ordinary bar-widget slot, so the bar's drag machinery can
 target it, and its slot lights up as a landing pad while a drag that could dock
-here is in flight. The slot's width never changes - growing it moved every
-neighbouring slot out from under the cursor and made ordinary reordering on the bar
-unreliable. But the *decision* is made by the plugin, from the release point, not by the
-bar's nearest-slot resolution: that resolution is what makes a drop a few pixels
-before the chevron go to the neighbouring widget and a drop past the end of the
-bar vanish.
+here is in flight. Its width never changes - growing it moved every neighbouring
+slot out from under the cursor and made ordinary reordering on the bar unreliable.
+
+The *decision* is made by the plugin, from the release point, not by the bar's
+nearest-slot resolution: that resolution snaps to whichever slot is nearest, which
+is fine for reordering but wrong for docking. The release point is tested against
+the chevron's own slot (plus `dockZoneSlack`, 0 by default) and the open drawer, and
+nothing else on the bar docks: dragging icons along the bar, over the corner and
+back, is always an ordinary bar drag, and the drawer only opens once the dragged
+icon actually reaches the chevron.
 
 A drop docks when the release lands anywhere in:
 

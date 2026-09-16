@@ -1,5 +1,23 @@
 # Bar dock
 
+## 0.7.5 - beta
+
+- Fix: **the drawer only opens when the dragged icon reaches the chevron.** The dock
+  zone used to run from the chevron's slot to the screen edge, so dragging any icon
+  along the last stretch of the bar opened the drawer under the cursor and a release
+  there docked the icon instead of reordering it. The zone is now the chevron's own
+  slot (plus `dockZoneSlack`, which defaults to `0` - set it if you want a wider
+  pocket), so reordering icons along the bar is never disturbed and the drawer
+  opening is the signal that releasing now will dock. `dockZoneSlack` no longer
+  reaches towards the screen edge, and the geometry is covered by tests.
+- Fix: an icon undocked with no remembered home lands **in front of the chevron**
+  instead of at the far end of the bar, so the chevron stays in the corner and the
+  icon comes back next to the drawer it came out of.
+- Fix: dock arming now requires a live bar drag. A stale drag target (at startup, or
+  after the bar rebuilt itself) could arm a dock that nobody asked for, and the next
+  unrelated layout write would dock that widget - reproduced and covered.
+
+
 ## 0.7.4 - beta
 
 - Fix: dropping an icon into the drawer no longer flashes plugin names where the

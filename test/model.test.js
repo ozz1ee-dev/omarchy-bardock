@@ -92,13 +92,14 @@ test("undockFrom lands in front of the chevron when the anchor is gone", () => {
   assert.deepEqual(Model.idsOf(doc.bar.layout.right), ["demo.notes", "demo.mail", "ozz1ee.bardock", "omarchy.system-update"])
 })
 
-test("undockFrom appends when there is no anchor and no remembered home", () => {
+test("an icon with no remembered home lands in front of the chevron", () => {
   const doc = config()
   // hand-built state: docked without a home (pre-0.3 layout), nothing after us
   doc.bar.layout.right = [{ id: "ozz1ee.bardock", docked: [{ id: "demo.mail" }] }]
 
   Model.undockFrom(doc, "ozz1ee.bardock", "demo.mail", "", "")
-  assert.deepEqual(Model.idsOf(doc.bar.layout.right), ["ozz1ee.bardock", "demo.mail"])
+  // In front of us, never past us: the chevron guards the corner of the bar.
+  assert.deepEqual(Model.idsOf(doc.bar.layout.right), ["demo.mail", "ozz1ee.bardock"])
 })
 
 test("undockFrom can put a docked widget back in another section", () => {
@@ -114,7 +115,10 @@ test("undockFrom falls back to the right section for a bogus one", () => {
   Model.dockInto(doc, "ozz1ee.bardock", "demo.mail")
   Model.undockFrom(doc, "ozz1ee.bardock", "demo.mail", "nonsense", "")
 
-  assert.equal(Model.idsOf(doc.bar.layout.right).slice(-1)[0], "demo.mail")
+  assert.deepEqual(
+    Model.idsOf(doc.bar.layout.right),
+    ["demo.notes", "demo.mail", "ozz1ee.bardock", "omarchy.system-update"],
+  )
 })
 
 test("dock then undock round-trips the layout", () => {
@@ -367,23 +371,37 @@ test("pointInRect is inclusive on both edges", () => {
   assert.equal(Model.pointInRect({ x: 20, y: 31 }, rect), false)
 })
 
-test("dockZoneRects covers the bar end and the square, not the middle of the bar", () => {
+test("dockZoneRects is the chevron's own slot, so the bar can be reordered untouched", () => {
   const square = { x: 1427, y: 31, width: 168, height: 168 }
-  const rects = Model.dockZoneRects(1548, 0, 84, 26, 1600, square, 24)
+  const rects = Model.dockZoneRects(1548, 0, 34, 26, 1600, square, 0)
 
-  assert.equal(Model.pointInAnyRect({ x: 1550, y: 13 }, rects), true)
-  assert.equal(Model.pointInAnyRect({ x: 1599, y: 26 }, rects), true)
-  assert.equal(Model.pointInAnyRect({ x: 1530, y: 13 }, rects), true)   // a bit before the chevron
-  assert.equal(Model.pointInAnyRect({ x: 1500, y: 13 }, rects), false)  // still on the neighbours
-  assert.equal(Model.pointInAnyRect({ x: 1500, y: 120 }, rects), true)  // over the square
+  assert.equal(Model.pointInAnyRect({ x: 1565, y: 13 }, rects), true)   // on the chevron
+  assert.equal(Model.pointInAnyRect({ x: 1549, y: 2 }, rects), true)    // its top edge
+  assert.equal(Model.pointInAnyRect({ x: 1530, y: 13 }, rects), false)  // 18px to the left: a neighbour
+  assert.equal(Model.pointInAnyRect({ x: 1590, y: 13 }, rects), false)  // past the slot
+  assert.equal(Model.pointInAnyRect({ x: 1500, y: 120 }, rects), true)  // over the open drawer
   assert.equal(Model.pointInAnyRect({ x: 800, y: 13 }, rects), false)   // middle of the bar
 })
 
+test("dockZoneRects honours a requested pocket on both sides", () => {
+  const rects = Model.dockZoneRects(1548, 0, 34, 26, 1600, null, 24)
+
+  assert.equal(Model.pointInAnyRect({ x: 1526, y: 13 }, rects), true)   // 22px left, inside the pocket
+  assert.equal(Model.pointInAnyRect({ x: 1518, y: 13 }, rects), false)  // 30px left, outside it
+  assert.equal(Model.pointInAnyRect({ x: 1580, y: 13 }, rects), true)   // 32px right, still inside
+})
+
 test("dockZoneRects works without a square (closed) and never goes negative", () => {
-  const rects = Model.dockZoneRects(10, 0, 84, 26, 1600, null, 24)
+  const rects = Model.dockZoneRects(10, 0, 34, 26, 1600, null, 24)
   assert.equal(rects.length, 1)
   assert.equal(rects[0].x, 0)
   assert.equal(Model.pointInAnyRect({ x: 5, y: 13 }, rects), true)
+})
+
+test("dockZoneRects never runs past the screen edge", () => {
+  const rects = Model.dockZoneRects(1580, 0, 34, 26, 1600, null, 40)
+  assert.equal(rects[0].x + rects[0].width <= 1600, true)
+  assert.equal(Model.pointInAnyRect({ x: 1599, y: 13 }, rects), true)
 })
 
 test("undocking with no target puts the widget back where it came from", () => {

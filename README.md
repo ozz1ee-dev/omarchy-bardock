@@ -53,11 +53,11 @@ patching of the shell.
 ## Use
 
 - **Click the chevron** to open and close the drawer. Escape also closes it.
-- **Dock an icon**: drag it from anywhere on the bar towards the corner. The
-  chevron's slot lights up as a landing pad when a drop here would dock, the drawer
-  opens under it, and the icon docks on release. The whole last stretch of the bar
-  counts, so you do not have to hit the glyph - and the slot keeps a fixed width, so
-  nothing else on the bar moves while you drag.
+- **Dock an icon**: drag it along the bar and onto the chevron itself. The drawer
+  opens as the icon arrives on the chevron - that is your cue that releasing now will
+  dock it - and the icon docks on release. Everywhere else on the bar behaves exactly
+  as it always did, so reordering your icons is never disturbed; the slot keeps a
+  fixed width too, so nothing on the bar shifts while you drag.
 - **Undock an icon**: open the drawer and drag a tile out onto the bar. The bar's
   own insertion marker shows the slot it will take.
 - **Reorder**: drag a tile onto another cell inside the drawer. The dragged tile
@@ -95,8 +95,8 @@ omarchy bar set ozz1ee.bardock <key> <value>
 | `minSide` | `168` | Smallest drawer side. |
 | `maxSide` | `0` | Optional cap on the drawer. `0` = no cap, the screen decides. |
 | `minCell` | `20` | How small the cells may get when a lot of icons must fit the screen. |
-| `dockOnNeighbourDrop` | `true` | Dock when a drag is released in the corner stretch of the bar. |
-| `dockZoneSlack` | `56` | How far along the bar, left of the chevron, a drop still docks. `0` = the chevron's own slot only. |
+| `dockOnNeighbourDrop` | `true` | Allow docking by dragging an icon onto the chevron. `false` leaves docking to the drag out of the drawer and the terminal. |
+| `dockZoneSlack` | `0` | Room around the chevron that still counts as a dock drop, and when the drawer opens during a bar drag. `0` = the chevron's own slot only, so reordering icons along the bar is never disturbed. |
 | `armMs` | `2500` | How long after a drag last hovered the chevron a drop beside it still counts. |
 | `dragStallMs` | `10000` | Last-resort guard: a drag that has not moved for this long is treated as lost. Lost drags are cleared immediately, as soon as no live pointer is behind them. |
 
@@ -119,7 +119,7 @@ is in [docs/how-it-works.md](docs/how-it-works.md).
 | Symptom | Fix |
 | --- | --- |
 | No chevron on the bar | `omarchy bar move ozz1ee.bardock --section right --index 99`, then `omarchy restart shell`. |
-| A drop beside the chevron docks nothing | Raise the zone: `omarchy bar set ozz1ee.bardock dockZoneSlack 96`. |
+| A drop beside the chevron docks nothing | That is the default on purpose: only the chevron itself docks, so bar reordering stays untouched. Want a wider pocket? `omarchy bar set ozz1ee.bardock dockZoneSlack 32`. |
 | A docked icon shows its name as text instead of an icon | That widget reports no face of its own (a custom `qml`/`command` entry). It still works; the plate keeps the cell from being blank. |
 | The desktop looks frozen with a ghost icon on screen | A pointer release got lost mid-drag. Clear it from a terminal: `omarchy-shell ozz1ee.bardock reset`. It also heals itself as soon as no live pointer is behind the drag. |
 | A docked icon looks off-centre | Widgets wider than their cell are centred in it. Raise `cell` to give the grid more room. |

@@ -42,9 +42,9 @@ BarWidget {
   // real hand pauses while aiming - cancelling that was a regression. The orphan
   // check below is what normally clears a lost drag, and it fires immediately.
   readonly property int dragStallMs: Math.round(Model.clamp(Number(setting("dragStallMs", 10000)), 1000, 60000))
-  // Aiming at a 17px glyph mid-drag is not a gesture; the drop counts anywhere in
-  // the last stretch of the bar, plus the square.
-  readonly property int dockZoneSlack: Math.round(Model.clamp(Number(setting("dockZoneSlack", 56)), 0, 400))
+  // Only the chevron itself is a dock drop; `dockZoneSlack` exists for anyone who
+  // wants a wider pocket around it.
+  readonly property int dockZoneSlack: Math.round(Model.clamp(Number(setting("dockZoneSlack", 0)), 0, 400))
 
   readonly property color foreground: bar ? bar.barForeground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -266,7 +266,11 @@ BarWidget {
   }
   property string lastDropTarget: ""
 
-  onDragTargetNameChanged: if (dragTargetName !== "") lastDropTarget = dragTargetName
+  // Only a live bar drag makes these signals mean anything: at startup (or after the
+  // bar rebuilds itself) a stale drag target would otherwise arm a dock that nobody
+  // asked for, and the next unrelated config write would dock that widget.
+  readonly property bool barDragLive: !!(bar && bar.barDragSource)
+  onDragTargetNameChanged: if (dragTargetName !== "" && root.barDragLive) lastDropTarget = dragTargetName
   onDragSourceNameChanged: {
     // A new drag starts: forget the previous drop so a stale target can never
     // dock something on a later, unrelated config write.
@@ -318,8 +322,10 @@ BarWidget {
     }
   }
 
-  // Where a drop counts as "on the chevron": the bar strip from the chevron's
-  // slot (84px wide while dragging) to the screen edge, plus the square below it.
+  // Where a drop counts as "on the chevron": the chevron's own slot (plus any
+  // requested pocket), and the square below it when the drawer is open. A release
+  // anywhere else on the bar stays an ordinary bar drop, so reordering icons along
+  // the bar never turns into a dock.
   function dockZoneRects() {
     var slotRect = ownSlotScreenRect
     if (!slotRect) return []
@@ -338,8 +344,9 @@ BarWidget {
   }
 
   // The drop half of the bar's drag: the bar's own nearest-slot resolution is
-  // ignored on purpose - a drop a few pixels before the chevron, or past the end
-  // of the bar, must still dock.
+  // ignored on purpose, because it snaps to whichever slot is nearest - so this
+  // decides from the release point instead, and only a release over the chevron (or
+  // in the open drawer) docks.
   function finishBarDrag(id, screenX, screenY) {
     var wanted = String(id || "")
     root.barDragId = ""
@@ -396,7 +403,7 @@ BarWidget {
   }
 
   onBarDragOverMeChanged: {
-    if (barDragOverMe) {
+    if (barDragOverMe && barDragLive) {
       // The square opens under the cursor so the drop has somewhere to land.
       // Which widget is coming is knowable only now: the bar drops its drag
       // state on release, before it writes the layout.
