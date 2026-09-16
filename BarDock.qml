@@ -42,9 +42,10 @@ BarWidget {
   // real hand pauses while aiming - cancelling that was a regression. The orphan
   // check below is what normally clears a lost drag, and it fires immediately.
   readonly property int dragStallMs: Math.round(Model.clamp(Number(setting("dragStallMs", 10000)), 1000, 60000))
-  // Only the chevron itself is a dock drop; `dockZoneSlack` exists for anyone who
-  // wants a wider pocket around it.
-  readonly property int dockZoneSlack: Math.round(Model.clamp(Number(setting("dockZoneSlack", 0)), 0, 400))
+  // A release within this margin around the chevron docks. The drawer itself only
+  // opens on the chevron, so a generous margin here is safe: it makes the drop easy
+  // to hit without the drawer popping up during an ordinary bar drag.
+  readonly property int dockZoneSlack: Math.round(Model.clamp(Number(setting("dockZoneSlack", 32)), 0, 400))
 
   readonly property color foreground: bar ? bar.barForeground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -110,19 +111,11 @@ BarWidget {
   // intent count as settled.
   property int intentChecks: 0
 
-  // See handleConfigChange: the dock write must not run inside the config-change
-  // callback that told us the drop happened.
-  property string deferredDockId: ""
-
-  Timer {
-    id: deferTimer
-    interval: 450
-    onTriggered: {
-      var id = root.deferredDockId
-      root.deferredDockId = ""
-      if (id !== "") root.dock(id)
-    }
-  }
+  // A dock decided at release is not written from here: the bar rebuilds its widget
+  // instances when the layout changes, so anything kept in this instance (a timer, a
+  // latch) is destroyed before it can run. The decision goes into our own entry as a
+  // pending dock instead, and whichever instance exists next settles it - see
+  // markPendingDock / settlePendingDock.
 
   readonly property bool intentPending: intentKind !== ""
 
@@ -188,11 +181,46 @@ BarWidget {
   }
 
   // ---- dock / undock -------------------------------------------------------
-  function dock(id) {
+  // Keep a decided dock in the config until it actually lands.
+  function markPendingDock(id) {
     if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
+    var ok = false
+    bar.shell.mutateShellConfig(function(document) {
+      ok = Model.setPendingDock(document, root.moduleName, id)
+    })
+    return ok
+  }
+
+  function clearPendingDock(id) {
+    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
+    bar.shell.mutateShellConfig(function(document) {
+      Model.clearPendingDock(document, root.moduleName)
+    })
+    return true
+  }
+
+  // Finish a dock that was decided earlier: run at every instance start (the bar
+  // rebuilds widgets on a layout change, so the instance that decided the dock is
+  // usually gone), and again after every config change as a free retry.
+  function settlePendingDock() {
+    var id = Model.pendingDock(root.config, root.moduleName, 6000)
+    if (!id) return false
+    if (Model.dockedIds(root.config, root.moduleName).indexOf(id) !== -1) {
+      root.clearPendingDock(id)
+      return false
+    }
+    console.log("bardock: settling a pending dock of " + id)
+    return root.dock(id)
+  }
+
+  function dock(id) {
+    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") {
+      return false
+    }
     var moved = false
     bar.shell.mutateShellConfig(function(document) {
       moved = Model.dockInto(document, root.moduleName, id) !== null
+      Model.clearPendingDock(document, root.moduleName)
     })
     console.log("bardock: dock " + id + " moved=" + moved)
     if (moved) root.rememberIntent("dock", id, "", "")
@@ -298,11 +326,14 @@ BarWidget {
     barDragX = barDragPoint.x
     barDragY = barDragPoint.y
 
-    // The square is the target, so it opens as soon as the drag reaches the
-    // corner, and goes away again if the drag wanders back over the bar.
-    var inZone = Model.pointInAnyRect({ x: barDragX, y: barDragY }, dockZoneRects())
-    if (inZone && !popupOpen) openPopup()
-    else if (!inZone && popupOpen && !dragActive) closePopup()
+    // Only the chevron itself opens the drawer; anything else on the bar stays an
+    // ordinary drag. Once open it stays open across the whole drop zone, so moving
+    // from the chevron down into the square keeps the target alive.
+    var point = { x: barDragX, y: barDragY }
+    var onChevron = Model.pointInAnyRect(point, openZoneRects())
+    var canDrop = Model.pointInAnyRect(point, dockZoneRects())
+    if (onChevron && !popupOpen) openPopup()
+    else if (!canDrop && popupOpen && !dragActive) closePopup()
   }
 
   readonly property var ownSlotScreenRect: {
@@ -322,11 +353,23 @@ BarWidget {
     }
   }
 
-  // Where a drop counts as "on the chevron": the chevron's own slot (plus any
-  // requested pocket), and the square below it when the drawer is open. A release
-  // anywhere else on the bar stays an ordinary bar drop, so reordering icons along
-  // the bar never turns into a dock.
+  // Two thresholds, deliberately different:
+  //   - the DROP zone (dockZoneRects) is the chevron's slot plus `dockZoneSlack`, and
+  //     the open drawer. This is the target the user actually aims at, so it has to be
+  //     forgiving: a release a few pixels off the glyph still docks.
+  //   - the OPEN trigger (openZoneRects) is the chevron's slot alone. Popping the
+  //     drawer open while an icon is dragged along the bar disrupts reordering, so the
+  //     drawer only appears once the dragged icon is really on the chevron.
+  // A release outside the drop zone is an ordinary bar drop.
   function dockZoneRects() {
+    return zoneRectsWith(root.dockZoneSlack)
+  }
+
+  function openZoneRects() {
+    return zoneRectsWith(0)
+  }
+
+  function zoneRectsWith(slack) {
     var slotRect = ownSlotScreenRect
     if (!slotRect) return []
     var window = barWindow()
@@ -340,7 +383,7 @@ BarWidget {
       }
       : null
     return Model.dockZoneRects(slotRect.x, slotRect.y, slotRect.width, slotRect.height,
-      screenWidth, square, root.dockZoneSlack)
+      screenWidth, square, slack)
   }
 
   // The drop half of the bar's drag: the bar's own nearest-slot resolution is
@@ -354,8 +397,12 @@ BarWidget {
     if (!root.dockOnDrop) return false
     if (!Model.isOnBar(root.config, wanted)) return false
     if (!Model.pointInAnyRect({ x: screenX, y: screenY }, dockZoneRects())) return false
-    deferredDockId = wanted
-    deferTimer.restart()
+    // Decide now, and leave the decision in our own entry: the bar writes the layout
+    // right after the release and rebuilds the widget instances, so anything we keep
+    // in memory (a timer, a latch) is gone by the time the write would happen. The
+    // marker is read by whichever instance exists next, including the fresh one.
+    root.markPendingDock(wanted)
+    root.settlePendingDock()
     return true
   }
 
@@ -410,7 +457,12 @@ BarWidget {
       armed = true
       pendingDockId = dragSourceName
       armTimer.restart()
-      if (!popupOpen) openPopup()
+      // The bar's nearest-slot resolution can point at this slot while the pointer is
+      // still over the neighbouring icon, and opening the drawer there is what used to
+      // disturb reordering. Open only when the pointer itself is on the chevron.
+      if (!popupOpen && Model.pointInAnyRect({ x: bar.barDragScreenX, y: bar.barDragScreenY }, openZoneRects())) {
+        openPopup()
+      }
       return
     }
     // The drag moved off the chevron onto another slot: whatever gets dropped
@@ -519,9 +571,6 @@ BarWidget {
     root.lastDropTarget = ""
     root.pendingDockId = ""
     console.log("bardock: config change #" + root.configChanges
-      + " armed=" + root.armed
-      + " pending=\"" + root.pendingDockId + "\""
-      + " target=\"" + root.lastDropTarget + "\""
       + " section=" + root.previousSection
       + " previousIds=" + root.previousIds.length
       + " landed=\"" + landed + "\"")
@@ -537,8 +586,8 @@ BarWidget {
       // Deferred on purpose: this handler runs inside the shell's own file-change
       // callback, and a shell.json write issued from there is lost (the shell's
       // FileView is busy with the write that triggered us). Let it settle first.
-      deferredDockId = landed
-      deferTimer.restart()
+      root.markPendingDock(landed)
+      root.settlePendingDock()
       return
     }
 
@@ -557,7 +606,10 @@ BarWidget {
     function onShellConfigChanged() { root.handleConfigChange() }
   }
 
-  Component.onCompleted: root.refreshSnapshot()
+  Component.onCompleted: {
+    root.refreshSnapshot()
+    root.settlePendingDock()
+  }
   onBarChanged: root.refreshSnapshot()
   // The bar is injected after completion; if the config arrives even later, seed
   // on the first change we see instead of reading it as a drop.
@@ -878,6 +930,7 @@ BarWidget {
       dragNear: root.dragNear,
       dragStallMs: root.dragStallMs,
       dockZone: dockZoneRects(),
+      openZone: openZoneRects(),
       barDragId: root.barDragId,
       reorderIndex: root.reorderIndex,
       dragFromIndex: root.dragFromIndex,

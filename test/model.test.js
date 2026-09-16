@@ -92,6 +92,27 @@ test("undockFrom lands in front of the chevron when the anchor is gone", () => {
   assert.deepEqual(Model.idsOf(doc.bar.layout.right), ["demo.notes", "demo.mail", "ozz1ee.bardock", "omarchy.system-update"])
 })
 
+test("a decided dock is kept in the entry until it is settled", () => {
+  const doc = config()
+  assert.equal(Model.pendingDock(doc, "ozz1ee.bardock"), null)
+
+  assert.equal(Model.setPendingDock(doc, "ozz1ee.bardock", "demo.mail"), true)
+  assert.equal(own(doc).pendingDock.id, "demo.mail")
+  assert.equal(Model.pendingDock(doc, "ozz1ee.bardock", 6000), "demo.mail")
+
+  assert.equal(Model.clearPendingDock(doc, "ozz1ee.bardock"), true)
+  assert.equal(Model.pendingDock(doc, "ozz1ee.bardock"), null)
+})
+
+test("a stale pending dock is ignored", () => {
+  const doc = config()
+  Model.setPendingDock(doc, "ozz1ee.bardock", "demo.mail")
+  own(doc).pendingDock.at = Date.now() - 60000
+
+  assert.equal(Model.pendingDock(doc, "ozz1ee.bardock", 6000), null)
+  assert.equal(Model.pendingDock(doc, "ozz1ee.bardock"), "demo.mail")
+})
+
 test("an icon with no remembered home lands in front of the chevron", () => {
   const doc = config()
   // hand-built state: docked without a home (pre-0.3 layout), nothing after us

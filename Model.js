@@ -126,6 +126,36 @@ function dockHomeFor(config, ownId, id) {
   return home && typeof home === "object" ? home : null
 }
 
+// A dock that has been decided but not yet written. The bar writes the layout right
+// after a drop *and* rebuilds the widget instances, so an in-memory timer set at
+// release time dies with the instance and the dock never happens (the icon stays
+// wherever the bar put it). This marker lives in our own entry, which the instance
+// built right after the rebuild reads, so any instance can finish the job.
+function setPendingDock(config, ownId, id) {
+  var own = findEntry(config, ownId)
+  if (!own || !own.entry) return false
+  own.entry.pendingDock = { id: String(id || ""), at: Date.now() }
+  return true
+}
+
+function pendingDock(config, ownId, maxAgeMs) {
+  var own = findEntry(config, ownId)
+  if (!own || !own.entry || !own.entry.pendingDock) return null
+  var marker = own.entry.pendingDock
+  var id = String(marker.id || "")
+  if (!id) return null
+  var age = Date.now() - Number(marker.at || 0)
+  if (maxAgeMs && age > Number(maxAgeMs)) return null
+  return id
+}
+
+function clearPendingDock(config, ownId) {
+  var own = findEntry(config, ownId)
+  if (!own || !own.entry || !own.entry.pendingDock) return false
+  delete own.entry.pendingDock
+  return true
+}
+
 function ensureDocked(entry) {
   if (!entry) return []
   if (!entry.docked || entry.docked.length === undefined) entry.docked = []
@@ -532,6 +562,9 @@ if (typeof module !== "undefined") {
     dockInto: dockInto,
     dockedEntries: dockedEntries,
     dockHomeFor: dockHomeFor,
+  setPendingDock: setPendingDock,
+  pendingDock: pendingDock,
+  clearPendingDock: clearPendingDock,
     dockedIds: dockedIds,
     dockZoneRects: dockZoneRects,
     pointInAnyRect: pointInAnyRect,

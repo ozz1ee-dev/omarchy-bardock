@@ -1,5 +1,20 @@
 # Bar dock
 
+## 0.7.6 - beta
+
+- Fix: dragging an icon onto the chevron now **lands it in the drawer every time**.
+  The dock was decided at release and then performed on a short timer, but the bar
+  rebuilds its widget instances when the layout changes: the instance that decided the
+  dock was destroyed together with its timer and the dock was silently lost. The icon
+  stayed wherever the bar had put it - which is why it "sometimes landed in front of
+  the chevron and sometimes behind it" and needed several attempts. The decision is now
+  kept in the widget's own entry as a pending dock, and whichever instance exists next
+  settles it; a pending dock older than a few seconds is ignored.
+- Fix: the drop is forgiving again without disturbing anything else. `dockZoneSlack`
+  defaults to 32 px around the chevron, while the drawer still opens **only** on the
+  chevron itself - so the corner is easy to hit and an ordinary bar drag is untouched.
+
+
 ## 0.7.5 - beta
 
 - Fix: **the drawer only opens when the dragged icon reaches the chevron.** The dock

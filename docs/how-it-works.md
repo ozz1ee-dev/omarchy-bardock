@@ -82,11 +82,25 @@ slot out from under the cursor and made ordinary reordering on the bar unreliabl
 
 The *decision* is made by the plugin, from the release point, not by the bar's
 nearest-slot resolution: that resolution snaps to whichever slot is nearest, which
-is fine for reordering but wrong for docking. The release point is tested against
-the chevron's own slot (plus `dockZoneSlack`, 0 by default) and the open drawer, and
-nothing else on the bar docks: dragging icons along the bar, over the corner and
-back, is always an ordinary bar drag, and the drawer only opens once the dragged
-icon actually reaches the chevron.
+is fine for reordering but wrong for docking.
+
+Two thresholds, deliberately different:
+
+- The **drop zone** is the chevron's slot plus `dockZoneSlack` (32 px by default),
+  and the open drawer. This is the target you aim at, so it is forgiving.
+- The **open trigger** is the chevron's slot alone. Popping the drawer open while an
+  icon is dragged along the bar disrupts reordering, so the drawer only appears once
+  the dragged icon is really on the chevron - and that is also the cue that releasing
+  now will dock.
+
+A dock decided at release is then written into the widget's own entry as a *pending
+dock*, not performed on a timer. That detail matters: the bar rebuilds its widget
+instances when the layout changes, so the instance that decided the dock is usually
+destroyed before a timer could run, and the dock was silently lost - the icon stayed
+wherever the bar had put it, just before or just after the chevron. The entry survives
+the rebuild, and whichever instance exists next finishes the job (the fresh instance
+settles it at load, and every config change retries it). A pending dock older than a
+few seconds is ignored.
 
 A drop docks when the release lands anywhere in:
 
