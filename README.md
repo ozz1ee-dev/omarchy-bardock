@@ -3,6 +3,10 @@
 **Your Omarchy bar is full. Put the icons you do not need every day behind one
 chevron in the corner, and keep them one drag away.**
 
+![Bar dock open on an Omarchy bar](preview.png)
+
+Watch it open and close:
+
 ![The drawer opening](docs/demo.gif)
 
 Every bar runs out of room eventually. Installing plugins is cheap, so the right
