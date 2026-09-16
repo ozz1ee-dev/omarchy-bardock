@@ -5,7 +5,7 @@ chevron in the corner, and keep them one drag away.**
 
 ![Bar dock open on an Omarchy bar](preview.png)
 
-Watch it open and close:
+Watch it open and close (11 seconds, [GIF](docs/demo.gif) or [MP4](docs/demo.mp4)):
 
 ![The drawer opening](docs/demo.gif)
 
