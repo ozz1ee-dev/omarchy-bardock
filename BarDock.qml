@@ -32,6 +32,11 @@ BarWidget {
   readonly property int userSideCap: Math.round(Model.clamp(Number(setting("maxSide", 0)), 0, 4000))
   readonly property bool dockOnDrop: setting("dockOnNeighbourDrop", true) !== false
   readonly property int armMs: Math.round(Model.clamp(Number(setting("armMs", 2500)), 300, 10000))
+
+  // widget id -> whether the widget has a face, shared with the tiles so a rebuilt
+  // tile does not flash its plugin name while its widget is loading.
+  property var faceMemory: ({})
+
   // Last-resort guard for a drag whose release never reached us: a drag that has
   // not moved for this long is not a drag. It is deliberately generous, because a
   // real hand pauses while aiming - cancelling that was a regression. The orphan
@@ -1176,6 +1181,7 @@ BarWidget {
 
             entry: root.dockedList[index] || null
             barHost: root.bar
+            faceMemory: root.faceMemory
             anchorHost: chevron
             registry: root.registryWidgets
             cellSize: root.cellUsed

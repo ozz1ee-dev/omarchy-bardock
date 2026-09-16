@@ -55,6 +55,15 @@ Item {
   readonly property bool pointerActive: pointer.active
   property bool reorderTarget: false
   property string itemProbe: ""
+  // Shared with the dock: widget id -> whether it has a face, remembered across
+  // tile rebuilds. Docking an icon rebuilds the tiles after it, and a fresh tile
+  // whose widget is still loading has nothing to show yet.
+  property var faceMemory: null
+  // Whether a measurement has actually concluded for the widget currently loaded.
+  // The label plate is only for widgets that really have none, so it must not
+  // appear while the widget is loading or being re-measured: that was the flash of
+  // plugin names when an icon was dropped into the drawer.
+  property bool faceChecked: false
   // Whether the widget has a face to show. Decided only while the drawer is
   // drawn (QML's `visible` reads *effective* visibility, so any measurement taken
   // in a hidden tree is a lie) and remembered in between.
@@ -127,22 +136,88 @@ Item {
     }
   }
 
-  function decideFace() {
-    var item = widgetLoader.item
-    if (!item) return
-    // Measurements in a hidden tree mean nothing: wait until the drawer is drawn.
-    if (tile.visible !== true) return
-    tile.revealCalls += 1
+  // One reading of 0x0 is not proof of no face: docking an icon changes the grid
+  // (the column count follows the icon count), so every tile is relaid out and a
+  // widget can report nothing for a frame. That single reading used to flip a
+  // widget from its face to its name - the flash of plugin names when an icon
+  // landed in the drawer. A "no face" reading is therefore re-checked before it is
+  // believed, and any positive reading wins immediately.
+  Timer {
+    id: faceSettle
+    interval: 120
+    repeat: false
+    property int tries: 0
+    onTriggered: {
+      var hasFace = tile.measureFace()
+      if (hasFace === null) { stop(); return }
+      if (hasFace === true || tries >= 3) {
+        stop()
+        tile.commitFace(hasFace === true)
+        return
+      }
+      tries += 1
+      restart()
+    }
+  }
 
+  // A rebuilt tile starts from what the dock remembers about this widget, so a
+  // known icon never falls back to its name for the frames the widget is loading.
+  function seedFace() {
+    if (!tile.faceMemory) return
+    var remembered = tile.faceMemory[tile.tileId]
+    if (remembered === undefined) {
+      tile.faceChecked = false
+      return
+    }
+    tile.faceChecked = true
+    tile.faceVisible = remembered === true
+  }
+
+  Component.onCompleted: seedFace()
+  onEntryChanged: seedFace()
+
+  // Read the widget's size as it is right now. null means there is nothing to
+  // measure yet (no item, or the drawer is not drawn: measurements in a hidden
+  // tree are a lie because QML's `visible` is effective visibility).
+  function measureFace() {
+    var item = widgetLoader.item
+    if (!item) return null
+    if (tile.visible !== true) return null
     // A widget that hides itself while everything is healthy (uptime with
     // hideWhenHealthy) has no face and therefore nothing to click. In the drawer
     // the icon was asked for, so give it one. Only this instance: the bar builds
     // its own when the icon goes home.
     if (item.visible === false) item.visible = true
-
     var width = item.implicitWidth > 0 ? item.implicitWidth : item.width
     var height = item.implicitHeight > 0 ? item.implicitHeight : item.height
-    tile.faceVisible = width > 0 && height > 0
+    return width > 0 && height > 0
+  }
+
+  function commitFace(hasFace) {
+    tile.faceVisible = hasFace
+    tile.faceChecked = true
+    if (tile.faceMemory) tile.faceMemory[tile.tileId] = hasFace
+  }
+
+  function decideFace() {
+    var hasFace = measureFace()
+    if (hasFace === null) return
+    tile.revealCalls += 1
+
+    if (hasFace === true) {
+      faceSettle.stop()
+      faceSettle.tries = 0
+      tile.commitFace(true)
+      return
+    }
+    // A widget we believe has a face keeps it until several readings agree that
+    // it is gone; a widget with no face is labelled at once.
+    if (tile.faceVisible === true && !faceSettle.running) {
+      faceSettle.tries = 0
+      faceSettle.start()
+      return
+    }
+    if (!faceSettle.running) tile.commitFace(false)
   }
 
   function injectWidget() {
@@ -217,13 +292,19 @@ Item {
     opacity: tile.liveVisible ? 1 : 0
     sourceComponent: tile.widgetComponent
     scale: tile.fitScale
-    onLoaded: tile.injectWidget()
+    onLoaded: {
+      tile.faceChecked = false
+      tile.injectWidget()
+    }
   }
 
   Text {
     anchors.fill: parent
     anchors.margins: Style.space(3)
-    visible: !tile.liveVisible
+    // No component at all means the widget is not available: name it at once.
+    // Otherwise wait for a concluded measurement, so a loading tile shows a bare
+    // cell rather than flashing the plugin name.
+    visible: tile.widgetComponent === null ? true : (tile.faceChecked && !tile.faceVisible)
     text: tile.label
     textFormat: Text.PlainText
     color: tile.foreground

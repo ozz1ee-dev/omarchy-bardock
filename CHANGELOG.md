@@ -1,5 +1,17 @@
 # Bar dock
 
+## 0.7.4 - beta
+
+- Fix: dropping an icon into the drawer no longer flashes plugin names where the
+  icons should be. Docking one more icon changes the column count, so the whole
+  grid is relaid out and a widget can report 0x0 for a frame; `decideFace()` took
+  that single reading as proof that the widget has no face and swapped it for its
+  name until the drawer was reopened. A "no face" reading is now re-checked before
+  it is believed (up to three checks, 120 ms apart) and any positive reading wins
+  immediately. Tiles also remember, per widget, whether it has a face, so a tile
+  that the relayout rebuilds starts on the face instead of the name.
+
+
 ## 0.7.3 - beta
 
 - Fix: **drag & drop actually works now, in both directions.** The root cause was a
