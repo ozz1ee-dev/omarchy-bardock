@@ -5,10 +5,6 @@ chevron in the corner, and keep them one drag away.**
 
 ![Bar dock open on an Omarchy bar](preview.png)
 
-Watch it open and close (11 seconds, [GIF](docs/demo.gif) or [MP4](docs/demo.mp4)):
-
-![The drawer opening](docs/demo.gif)
-
 Every bar runs out of room eventually. Installing plugins is cheap, so the right
 side grows until the widgets you actually look at are squeezed into a few pixels
 next to the ones you installed once and forgot about. Bar dock gives you a single
