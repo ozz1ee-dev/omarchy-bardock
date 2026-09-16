@@ -1,13 +1,28 @@
 # Bar dock
 
+## 0.7.2 - beta
+
+- Fix: **0.7.1 broke dragging out of the drawer, and this is the correction.** Its
+  freeze fix cancelled a drag after 2.5 s without pointer movement, so any pause
+  while aiming killed the gesture: the drawer briefly froze, then the icon dropped
+  back into it. The guard is now about *orphaned* drags instead of idle ones - the
+  dock checks every 250 ms whether a live pointer handler still owns the gesture,
+  and clears the drag only when none does. A hand that holds still keeps its drag;
+  a release that never arrives is cleared within a quarter of a second.
+  `dragStallMs` remains as a generous last-resort guard, now 10 s.
+
+
 ## 0.7.1 - beta
 
 - Fix: **a dropped pointer release could freeze the desktop.** If a drag out of the
   drawer ended without us seeing the release, the drag stayed live: the ghost icon
   stayed on screen, the drawer stayed open and its focus grab kept holding input, so
-  nothing could be clicked. A drag that does not move for `dragStallMs` (2500 ms) is
-  now cleared automatically, and `omarchy-shell ozz1ee.bardock reset` clears it on
-  demand - it works even when the desktop looks frozen, because it needs no pointer.
+  nothing could be clicked. A drag with no live pointer behind it (checked every
+  250 ms) is now cleared immediately, and `omarchy-shell ozz1ee.bardock reset`
+  clears it on demand - it works even when the desktop looks frozen, because it
+  needs no pointer. `dragStallMs` stays as a generous last-resort guard; an earlier
+  revision of this fix used "no movement for 2.5 s", which cancelled real drags
+  whenever the hand paused while aiming.
 - Fix: **the chevron's slot no longer widens for every bar drag.** It used to open
   into a landing pad for the whole duration of any drag anywhere on the bar, which
   pushed the neighbouring icons sideways under the cursor and made ordinary

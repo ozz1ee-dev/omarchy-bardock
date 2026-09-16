@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ozz1ee.bardock",
   "name": "Bar dock",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "author": "ozz1ee",
   "license": "MIT",
   "description": "One chevron in the corner of the bar that opens a square dock for the icons you keep off the bar. Drop an icon on the chevron to dock it, drag it out again to put it back.",
@@ -32,7 +32,7 @@
       "armMs": 2500,
       "dockZoneSlack": 56,
       "minCell": 20,
-      "dragStallMs": 2500
+      "dragStallMs": 10000
     },
     "schema": [
       {
@@ -87,9 +87,9 @@
       {
         "key": "dragStallMs",
         "type": "number",
-        "label": "Drop the drag after (ms)",
-        "defaultValue": 2500,
-        "description": "A drag that has not moved for this long is treated as lost and cleared, so a dropped pointer release cannot leave the drawer holding your input."
+        "label": "Clear a dead drag after (ms)",
+        "defaultValue": 10000,
+        "description": "Last-resort guard: a drag that has not moved for this long is treated as lost. Lost drags are normally cleared immediately, as soon as no live pointer is behind them."
       }
     ]
   }

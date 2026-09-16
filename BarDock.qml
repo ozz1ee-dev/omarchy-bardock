@@ -32,11 +32,11 @@ BarWidget {
   readonly property int userSideCap: Math.round(Model.clamp(Number(setting("maxSide", 0)), 0, 4000))
   readonly property bool dockOnDrop: setting("dockOnNeighbourDrop", true) !== false
   readonly property int armMs: Math.round(Model.clamp(Number(setting("armMs", 2500)), 300, 10000))
-  // A drag whose release never reaches us (the tile rebuilt mid-drag, a release
-  // over another window) leaves the ghost up and the drawer open with its focus
-  // grab held, which reads as a frozen desktop. A drag that stops moving for this
-  // long is not a drag any more and is cleared.
-  readonly property int dragStallMs: Math.round(Model.clamp(Number(setting("dragStallMs", 2500)), 500, 20000))
+  // Last-resort guard for a drag whose release never reached us: a drag that has
+  // not moved for this long is not a drag. It is deliberately generous, because a
+  // real hand pauses while aiming - cancelling that was a regression. The orphan
+  // check below is what normally clears a lost drag, and it fires immediately.
+  readonly property int dragStallMs: Math.round(Model.clamp(Number(setting("dragStallMs", 10000)), 1000, 60000))
   // Aiming at a 17px glyph mid-drag is not a gesture; the drop counts anywhere in
   // the last stretch of the bar, plus the square.
   readonly property int dockZoneSlack: Math.round(Model.clamp(Number(setting("dockZoneSlack", 56)), 0, 400))
@@ -410,6 +410,31 @@ BarWidget {
 
   // Anything that stops moving is not a drag: this is the second half of the freeze
   // fix, so a lost release heals itself instead of holding the desktop hostage.
+  // A drag with no live pointer behind it is an orphan: the tile that owned the
+  // gesture is gone (rebuilt mid-drag) or the release was lost. Clearing it is what
+  // unfreezes the desktop, and unlike a "it stopped moving" timer it cannot fire
+  // while the user is simply holding still with the button down.
+  function anyTileDragging() {
+    for (var i = 0; i < tileRepeater.count; i++) {
+      var item = tileRepeater.itemAt(i)
+      if (item && item.pointerActive === true) return true
+    }
+    return false
+  }
+
+  Timer {
+    id: orphanCheck
+    interval: 250
+    repeat: true
+    running: root.dragActive
+    onTriggered: {
+      if (!root.dragActive) return
+      if (root.anyTileDragging()) return
+      console.log("bardock: drag has no pointer behind it, clearing it")
+      root.reset()
+    }
+  }
+
   Timer {
     id: dragWatchdog
     interval: root.dragStallMs
@@ -834,6 +859,7 @@ BarWidget {
       slots: bar && bar.moduleSlots ? bar.moduleSlots.length : -1,
       ghostWindows: root.ghostWindows,
       instances: bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(root.moduleName).length : 0,
+      tileDragging: root.anyTileDragging(),
       slotWidth: root.slotWidth,
       padShown: root.padShown,
       dragNear: root.dragNear,

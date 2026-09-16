@@ -50,6 +50,9 @@ Item {
     if (visible) faceTimer.start()
   }
   property bool draggingTile: false
+  // Whether the pointer handler inside this tile still owns a gesture. The dock
+  // watches this to tell a live drag from an orphaned one.
+  readonly property bool pointerActive: pointer.active
   property bool reorderTarget: false
   property string itemProbe: ""
   // Whether the widget has a face to show. Decided only while the drawer is
