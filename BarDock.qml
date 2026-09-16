@@ -431,7 +431,7 @@ BarWidget {
       if (!root.dragActive) return
       if (root.anyTileDragging()) return
       console.log("bardock: drag has no pointer behind it, clearing it")
-      root.reset()
+      root.reset("orphan")
     }
   }
 
@@ -441,7 +441,7 @@ BarWidget {
     onTriggered: {
       if (!root.dragActive) return
       console.log("bardock: drag idle for " + root.dragStallMs + "ms, clearing it")
-      root.reset()
+      root.reset("stall")
     }
   }
 
@@ -451,7 +451,7 @@ BarWidget {
   // Everything a lost pointer release can leave behind, undone in one call. Also
   // the escape hatch from a terminal: `omarchy-shell ozz1ee.bardock reset` works
   // even when the desktop looks frozen, because it needs no pointer.
-  function reset() {
+  function reset(reason) {
     var wasDragging = dragActive
     dragWatchdog.stop()
     resetDockDrag()
@@ -463,7 +463,7 @@ BarWidget {
     // readonly bindings onto the bar, and assigning to one throws, which used to
     // abort this function halfway (leaving the drawer open).
     closePopup()
-    console.log("bardock: reset (wasDragging=" + wasDragging + ")")
+    console.log("bardock: reset (wasDragging=" + wasDragging + ", reason=" + (reason || "?") + ")")
   }
 
   function refreshSnapshot() {
@@ -661,7 +661,7 @@ BarWidget {
   }
 
   function dropTargetAt(screenPoint) {
-    var geometry = dragGeometry(popupScenePoint)
+    var geometry = dragGeometry(screenPoint)
     if (!geometry.inside) return null
     return Model.nearestSlot(slotCandidates(), geometry.scene, bar ? bar.vertical : false)
   }

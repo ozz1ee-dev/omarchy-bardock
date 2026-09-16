@@ -1,5 +1,26 @@
 # Bar dock
 
+## 0.7.3 - beta
+
+- Fix: **drag & drop actually works now, in both directions.** The root cause was a
+  stale identifier: `dropTargetAt()` looked at `popupScenePoint`, a variable that
+  does not exist in its scope, instead of its own `screenPoint` argument. Every
+  drop ran into a `ReferenceError` halfway through, so a tile dragged out of the
+  drawer never landed on the bar: the icon stayed in the drawer, the drawer stayed
+  open holding its focus grab, and the desktop looked frozen. The same call sat on
+  the path that reorders tiles inside the square, so reordering was broken too.
+  This was present in the first public commit, which means the drop path never
+  worked through the real handler; it was only ever exercised through test seams
+  that call the model functions directly. All four gestures are now verified end to
+  end with a real pointer: drawer to bar, bar to drawer, tile to tile, and back.
+- Fix: 0.7.1's freeze guard treated "no pointer movement for 2.5 s" as a lost drag,
+  so pausing while aiming aborted the gesture. Corrected in 0.7.2 and kept here:
+  the dock checks whether a live pointer handler still owns the drag (every 250 ms)
+  and clears only an orphaned one; a hand that holds still keeps its drag.
+- The drawer can always be cleared by hand with
+  `omarchy-shell ozz1ee.bardock reset`, which needs no pointer at all.
+
+
 ## 0.7.2 - beta
 
 - Fix: **0.7.1 broke dragging out of the drawer, and this is the correction.** Its
