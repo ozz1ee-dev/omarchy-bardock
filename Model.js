@@ -156,6 +156,78 @@ function clearPendingDock(config, ownId) {
   return true
 }
 
+// The entries parked in the shell's plugin list that belong to our drawer, in parked
+// order. Disabling a plugin removes its bar entry from shell.json, and re-enabling it
+// adds a bare one - so the `docked` list that named the drawer's icons is gone while the
+// entries themselves stay parked. The marker on each entry is what lets a fresh entry
+// adopt them back instead of coming up empty.
+function adoptableDocked(config, ownId) {
+  var mine = String(ownId || "")
+  var out = []
+  if (mine === "") return out
+  var list = pluginsList(config)
+  for (var i = 0; i < list.length; i++) {
+    var entry = list[i]
+    if (entry && typeof entry === "object" && String(entry.dockedBy || "") === mine) out.push(entry)
+  }
+  return out
+}
+
+function adoptDocked(config, ownId) {
+  var own = findEntry(config, ownId)
+  if (!own || !own.entry || own.kind !== "bar") return 0
+  var list = ensureDocked(own.entry)
+  var have = {}
+  for (var i = 0; i < list.length; i++) have[entryId(list[i])] = true
+
+  var parked = adoptableDocked(config, ownId)
+  var adopted = 0
+  for (var j = 0; j < parked.length; j++) {
+    var id = entryId(parked[j])
+    if (id === "" || have[id]) continue
+    list.push(parked[j])
+    have[id] = true
+    adopted += 1
+  }
+  return adopted
+}
+
+// Keep the markers honest: whatever sits in our drawer is marked, and anything that is
+// no longer docked is not, wherever it ended up (parked list or a bar section).
+function sweepDockMarkers(config, ownId) {
+  var mine = String(ownId || "")
+  if (mine === "") return 0
+  var own = findEntry(config, ownId)
+  var docked = (own && own.entry) ? ensureDocked(own.entry) : []
+  var inside = {}
+  var changed = 0
+
+  for (var i = 0; i < docked.length; i++) {
+    var entry = docked[i]
+    if (!entry || typeof entry !== "object") continue
+    inside[entryId(entry)] = true
+    if (String(entry.dockedBy || "") !== mine) {
+      entry.dockedBy = mine
+      changed += 1
+    }
+  }
+
+  var anywhere = pluginsList(config).slice()
+  for (var k = 0; k < SECTIONS.length; k++) {
+    anywhere = anywhere.concat(sectionEntries(layoutOf(config), SECTIONS[k]))
+  }
+  for (var j = 0; j < anywhere.length; j++) {
+    var other = anywhere[j]
+    if (!other || typeof other !== "object") continue
+    if (String(other.dockedBy || "") !== mine) continue
+    if (!inside[entryId(other)]) {
+      delete other.dockedBy
+      changed += 1
+    }
+  }
+  return changed
+}
+
 function ensureDocked(entry) {
   if (!entry) return []
   if (!entry.docked || entry.docked.length === undefined) entry.docked = []
@@ -199,8 +271,20 @@ function dockInto(config, ownId, id) {
 
   var source = findEntry(config, wanted)
   if (!source) return null
-  // Already parked in plugins[]: nothing to move.
-  if (source.kind === "plugin") return null
+
+  var list = ensureDocked(own.entry)
+  var present = false
+  for (var i = 0; i < list.length; i++) if (entryId(list[i]) === wanted) { present = true; break }
+
+  // Already parked in plugins[]: the icon is off the bar and only has to be recorded
+  // in the drawer's order. That is the case when a parked widget is docked again (the
+  // plugin was disabled and enabled, so the drawer's list was lost), and it is also
+  // what makes `dock <id>` work for any parked widget.
+  if (source.kind === "plugin") {
+    if (present) return null
+    list.push(source.entry)
+    return source.entry
+  }
 
   var entries = sectionEntriesMutable(layoutOf(config), source.section)
   var nextId = entryId(entries[source.index + 1])
@@ -211,9 +295,6 @@ function dockInto(config, ownId, id) {
   // An entry can be on the bar and still listed in docked[] (it was dragged out
   // by the bar's own drag, or put back by hand). Re-park it without duplicating
   // the list entry - that is what "dropped on the chevron again" means.
-  var list = ensureDocked(own.entry)
-  var present = false
-  for (var i = 0; i < list.length; i++) if (entryId(list[i]) === wanted) { present = true; break }
   if (!present) list.push(source.entry)
   return source.entry
 }
@@ -562,6 +643,9 @@ if (typeof module !== "undefined") {
     dockInto: dockInto,
     dockedEntries: dockedEntries,
     dockHomeFor: dockHomeFor,
+  adoptableDocked: adoptableDocked,
+  adoptDocked: adoptDocked,
+  sweepDockMarkers: sweepDockMarkers,
   setPendingDock: setPendingDock,
   pendingDock: pendingDock,
   clearPendingDock: clearPendingDock,

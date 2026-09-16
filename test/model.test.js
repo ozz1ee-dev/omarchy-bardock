@@ -92,6 +92,45 @@ test("undockFrom lands in front of the chevron when the anchor is gone", () => {
   assert.deepEqual(Model.idsOf(doc.bar.layout.right), ["demo.notes", "demo.mail", "ozz1ee.bardock", "omarchy.system-update"])
 })
 
+test("a widget that is already parked can still be docked", () => {
+  const doc = config()
+  assert.equal(Model.isOnBar(doc, "demo.shot"), false)   // parked from the start
+
+  assert.ok(Model.dockInto(doc, "ozz1ee.bardock", "demo.shot"))
+  assert.deepEqual(Model.dockedIds(doc, "ozz1ee.bardock"), ["demo.shot"])
+  assert.equal(Model.dockInto(doc, "ozz1ee.bardock", "demo.shot"), null)  // no duplicate
+})
+
+test("docked entries carry a marker, and a bare entry adopts them back", () => {
+  const doc = config()
+  Model.dockInto(doc, "ozz1ee.bardock", "demo.mail")
+  Model.dockInto(doc, "ozz1ee.bardock", "demo.notes")
+  Model.sweepDockMarkers(doc, "ozz1ee.bardock")
+
+  assert.equal(own(doc).docked.every((e) => e.dockedBy === "ozz1ee.bardock"), true)
+  assert.equal(Model.adoptableDocked(doc, "ozz1ee.bardock").length, 2)
+
+  // the disable/enable cycle: the bar entry comes back bare, the parked entries keep
+  // their markers
+  own(doc).docked = []
+  assert.equal(Model.adoptDocked(doc, "ozz1ee.bardock"), 2)
+  assert.deepEqual(Model.dockedIds(doc, "ozz1ee.bardock"), ["demo.mail", "demo.notes"])
+})
+
+test("the marker is dropped when an icon leaves the drawer", () => {
+  const doc = config()
+  Model.dockInto(doc, "ozz1ee.bardock", "demo.mail")
+  Model.sweepDockMarkers(doc, "ozz1ee.bardock")
+
+  Model.undockFrom(doc, "ozz1ee.bardock", "demo.mail", "right", "demo.notes")
+  Model.sweepDockMarkers(doc, "ozz1ee.bardock")
+
+  const onBar = Model.sectionEntries(Model.layoutOf(doc), "right")
+    .find((e) => Model.entryId(e) === "demo.mail")
+  assert.equal(Model.entryId(onBar), "demo.mail")
+  assert.equal("dockedBy" in onBar, false)
+})
+
 test("a decided dock is kept in the entry until it is settled", () => {
   const doc = config()
   assert.equal(Model.pendingDock(doc, "ozz1ee.bardock"), null)

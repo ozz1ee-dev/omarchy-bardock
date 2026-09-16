@@ -220,6 +220,7 @@ BarWidget {
     var moved = false
     bar.shell.mutateShellConfig(function(document) {
       moved = Model.dockInto(document, root.moduleName, id) !== null
+      Model.sweepDockMarkers(document, root.moduleName)
       Model.clearPendingDock(document, root.moduleName)
     })
     console.log("bardock: dock " + id + " moved=" + moved)
@@ -233,6 +234,7 @@ BarWidget {
     var moved = false
     bar.shell.mutateShellConfig(function(document) {
       moved = Model.undockFrom(document, root.moduleName, id, section, beforeName) !== null
+      Model.sweepDockMarkers(document, root.moduleName)
     })
     console.log("bardock: undock " + id + " moved=" + moved + " before=" + beforeName)
     if (moved) root.rememberIntent("undock", id, section, beforeName)
@@ -606,14 +608,48 @@ BarWidget {
     function onShellConfigChanged() { root.handleConfigChange() }
   }
 
-  Component.onCompleted: {
-    root.refreshSnapshot()
-    root.settlePendingDock()
+  Component.onCompleted: root.refreshSnapshot()
+
+  // A plugin that was disabled and enabled again comes back with a bare entry: the bar
+  // removed ours from shell.json (and with it the `docked` list) while the docked entries
+  // stayed parked in plugins[]. Adopt them back from their markers, in their parked order,
+  // instead of showing an empty drawer.
+  // Marked entries that are parked but not in the drawer yet: those are what a bare
+  // entry (a disable/enable cycle) has to take back.
+  function pendingAdoption() {
+    var marked = Model.adoptableDocked(root.config, root.moduleName)
+    var have = Model.dockedIds(root.config, root.moduleName)
+    var missing = []
+    for (var i = 0; i < marked.length; i++) {
+      var id = Model.entryId(marked[i])
+      if (id !== "" && have.indexOf(id) === -1) missing.push(id)
+    }
+    return missing
   }
-  onBarChanged: root.refreshSnapshot()
+
+  function adoptDockedEntries() {
+    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return 0
+    if (root.pendingAdoption().length === 0) return 0
+    var adopted = 0
+    bar.shell.mutateShellConfig(function(document) {
+      adopted = Model.adoptDocked(document, root.moduleName)
+      Model.sweepDockMarkers(document, root.moduleName)
+    })
+    if (adopted > 0) console.log("bardock: adopted " + adopted + " docked icon(s) from the parked list")
+    return adopted
+  }
+  // `bar` arrives after Component.onCompleted (the host injects it from its own
+  // onLoaded), so anything that needs it has to wait for the first bar change.
+  onBarChanged: {
+    root.refreshSnapshot()
+    root.adoptDockedEntries()
+  }
   // The bar is injected after completion; if the config arrives even later, seed
   // on the first change we see instead of reading it as a drop.
-  onConfigChanged: if (!root.seeded) root.refreshSnapshot()
+  onConfigChanged: {
+    if (!root.seeded) root.refreshSnapshot()
+    root.adoptDockedEntries()
+  }
 
   // ---- dragging a docked icon back onto the bar ---------------------------
   property bool dragActive: false

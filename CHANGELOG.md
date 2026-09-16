@@ -1,5 +1,20 @@
 # Bar dock
 
+## 0.7.8 - beta
+
+- Fix: **the drawer survives the plugin being disabled and enabled again.** Disabling a
+  plugin removes its bar entry from `shell.json`, and re-enabling it adds a bare one - so
+  the `docked` list that named the drawer's icons went with it and the drawer came up
+  empty (the docked widgets themselves stayed parked in the shell's plugin list, with all
+  their settings). Every docked entry now carries a marker, and a fresh entry adopts the
+  marked entries back in their parked order - on the first bar change and on every config
+  change, because the bar object arrives before the config does. Nothing is lost, and the
+  drawer rebuilds itself.
+- Fix: `dock <id>` (and docking in general) now accepts a widget that is already parked in
+  the shell's plugin list, not only one sitting on the bar. Parking is a normal state for a
+  docked icon, so the command has to be able to put a parked one back into the drawer.
+
+
 ## 0.7.7 - beta
 
 - The development helper script is gone. It only linked a checkout into the shell's
