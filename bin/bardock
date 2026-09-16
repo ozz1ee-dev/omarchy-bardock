@@ -1,0 +1,44 @@
+#!/bin/bash
+# Drive the Bar dock from a terminal.
+set -euo pipefail
+
+target=ozz1ee.bardock
+cmd=${1:-state}
+shift || true
+
+case $cmd in
+  state|registry|open|close|toggle|undockAll|dedupe|refresh|candidates)
+    omarchy-shell "$target" "$cmd" "$@"
+    ;;
+  dock|undock)
+    [[ $# -ge 1 ]] || { echo "usage: bardock $cmd <plugin-id>" >&2; exit 2; }
+    omarchy-shell "$target" "$cmd" "$1"
+    ;;
+  drop)
+    # bardock drop <plugin-id> <x> <y>: the drop half of dragging out of the
+    # square, in bar coordinates (dev/test seam).
+    [[ $# -ge 3 ]] || { echo "usage: bardock drop <plugin-id> <x> <y>" >&2; exit 2; }
+    omarchy-shell "$target" dropAt "$1" "$2" "$3"
+    ;;
+  state-json)
+    omarchy-shell "$target" state | jq
+    ;;
+  *)
+    cat >&2 <<'USAGE'
+usage: bardock <command> [args]
+
+  state                 what the square shows, one JSON line
+  state-json            the same, pretty-printed
+  registry              widget catalogue the shell exposes
+  open | close | toggle open, close or flip the square
+  dock <plugin-id>      dock a widget (same as dropping it on the chevron)
+  undock <plugin-id>    put a docked widget back on the bar
+  undockAll             put everything back on the bar
+  drop <id> <x> <y>     run the drop half of a drag at bar coordinates
+  candidates            slots the drop hit test can see
+  dedupe                repair doubled layout entries
+  refresh               re-read the baseline layout
+USAGE
+    exit 2
+    ;;
+esac

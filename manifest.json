@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "ozz1ee.bardock",
+  "name": "Bar dock",
+  "version": "0.7.0",
+  "author": "ozz1ee",
+  "license": "MIT",
+  "description": "One chevron in the corner of the bar that opens a square dock for the icons you keep off the bar. Drop an icon on the chevron to dock it, drag it out again to put it back.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarDock.qml"
+  },
+  "barWidget": {
+    "displayName": "Bar dock",
+    "description": "Keeps the bar icons you do not use behind one chevron, in a square dock you drag them in and out of",
+    "category": "Layout",
+    "aliases": [
+      "dock",
+      "hider",
+      "hide",
+      "chevron"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "cell": 46,
+      "minSide": 168,
+      "maxSide": 0,
+      "dockOnNeighbourDrop": true,
+      "armMs": 2500,
+      "dockZoneSlack": 56,
+      "minCell": 20
+    },
+    "schema": [
+      {
+        "key": "cell",
+        "type": "number",
+        "label": "Icon cell size",
+        "defaultValue": 46,
+        "description": "Side of one cell in the dock grid, in pixels."
+      },
+      {
+        "key": "minSide",
+        "type": "number",
+        "label": "Smallest square",
+        "defaultValue": 168,
+        "description": "The dock is never smaller than this; a 3x3 grid of icons fits inside it."
+      },
+      {
+        "key": "maxSide",
+        "type": "number",
+        "label": "Largest side (px, 0 = screen)",
+        "defaultValue": 0,
+        "description": "Optional cap on the drawer. 0 means no cap: the drawer grows with its icons until the screen stops it."
+      },
+      {
+        "key": "dockOnNeighbourDrop",
+        "type": "boolean",
+        "label": "Dock an icon dropped on the chevron",
+        "defaultValue": true,
+        "description": "Off means the chevron only opens the dock and icons are docked from the terminal."
+      },
+      {
+        "key": "dockZoneSlack",
+        "type": "number",
+        "label": "Dock zone width (px)",
+        "defaultValue": 56,
+        "description": "How far along the bar, to the left of the chevron, a drop still docks. 0 means the chevron's own slot only."
+      },
+      {
+        "key": "armMs",
+        "type": "number",
+        "label": "Drop window (ms)",
+        "defaultValue": 2500,
+        "description": "How long after a drag last hovered the chevron a drop beside it still counts as docking."
+      },
+      {
+        "key": "minCell",
+        "type": "number",
+        "label": "Smallest cell (px)",
+        "defaultValue": 20,
+        "description": "How small the icons may be drawn when a lot of them have to fit the screen. The drawer stays square."
+      }
+    ]
+  }
+}
