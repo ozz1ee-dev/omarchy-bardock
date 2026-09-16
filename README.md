@@ -97,6 +97,7 @@ omarchy bar set ozz1ee.bardock <key> <value>
 | `dockOnNeighbourDrop` | `true` | Dock when a drag is released in the corner stretch of the bar. |
 | `dockZoneSlack` | `56` | How far along the bar, left of the chevron, a drop still docks. `0` = the chevron's own slot only. |
 | `armMs` | `2500` | How long after a drag last hovered the chevron a drop beside it still counts. |
+| `dragStallMs` | `2500` | How long a drag may sit still before it is treated as lost and cleared. |
 
 ## How it works
 
@@ -119,6 +120,7 @@ is in [docs/how-it-works.md](docs/how-it-works.md).
 | No chevron on the bar | `omarchy bar move ozz1ee.bardock --section right --index 99`, then `omarchy restart shell`. |
 | A drop beside the chevron docks nothing | Raise the zone: `omarchy bar set ozz1ee.bardock dockZoneSlack 96`. |
 | A docked icon shows its name as text instead of an icon | That widget reports no face of its own (a custom `qml`/`command` entry). It still works; the plate keeps the cell from being blank. |
+| The desktop looks frozen with a ghost icon on screen | A pointer release got lost mid-drag. Clear it from a terminal: `omarchy-shell ozz1ee.bardock reset`. It also heals itself after `dragStallMs` of no movement. |
 | A docked icon looks off-centre | Widgets wider than their cell are centred in it. Raise `cell` to give the grid more room. |
 | Icons missing from the bar after removing the plugin | They are parked in `plugins[]`. Re-add the plugin and run `undockAll`, or `omarchy bar put <id> --section right`. |
 

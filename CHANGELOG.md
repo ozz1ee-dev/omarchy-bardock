@@ -1,5 +1,23 @@
 # Bar dock
 
+## 0.7.1 - beta
+
+- Fix: **a dropped pointer release could freeze the desktop.** If a drag out of the
+  drawer ended without us seeing the release, the drag stayed live: the ghost icon
+  stayed on screen, the drawer stayed open and its focus grab kept holding input, so
+  nothing could be clicked. A drag that does not move for `dragStallMs` (2500 ms) is
+  now cleared automatically, and `omarchy-shell ozz1ee.bardock reset` clears it on
+  demand - it works even when the desktop looks frozen, because it needs no pointer.
+- Fix: **the chevron's slot no longer widens for every bar drag.** It used to open
+  into a landing pad for the whole duration of any drag anywhere on the bar, which
+  pushed the neighbouring icons sideways under the cursor and made ordinary
+  reordering feel wrong. The strip now opens only when a drop there would actually
+  dock: while the bar is dragging something *and* the pointer is inside the dock
+  zone.
+- Fix (development): the `fakeDrag` terminal seam no longer starts a real drag. It
+  only reports which cell a screen point resolves to, so a forgotten call cannot
+  leave a drag in flight.
+
 ## 0.7.0 - beta
 
 - **The drawer has no size limit any more.** 0.6.0 and earlier capped the side at

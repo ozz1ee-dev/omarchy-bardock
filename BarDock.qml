@@ -32,6 +32,11 @@ BarWidget {
   readonly property int userSideCap: Math.round(Model.clamp(Number(setting("maxSide", 0)), 0, 4000))
   readonly property bool dockOnDrop: setting("dockOnNeighbourDrop", true) !== false
   readonly property int armMs: Math.round(Model.clamp(Number(setting("armMs", 2500)), 300, 10000))
+  // A drag whose release never reaches us (the tile rebuilt mid-drag, a release
+  // over another window) leaves the ghost up and the drawer open with its focus
+  // grab held, which reads as a frozen desktop. A drag that stops moving for this
+  // long is not a drag any more and is cleared.
+  readonly property int dragStallMs: Math.round(Model.clamp(Number(setting("dragStallMs", 2500)), 500, 20000))
   // Aiming at a 17px glyph mid-drag is not a gesture; the drop counts anywhere in
   // the last stretch of the bar, plus the square.
   readonly property int dockZoneSlack: Math.round(Model.clamp(Number(setting("dockZoneSlack", 56)), 0, 400))
@@ -358,7 +363,14 @@ BarWidget {
   // `testDrag` is a terminal seam: the landing pad and the wider slot only show
   // while the bar is dragging, which a script cannot start without a mouse.
   property bool testDrag: false
-  readonly property int slotWidth: (barDragInFlight || barDragOverMe || testDrag) ? expandedWidth : baseWidth
+  // Widening for the whole duration of *any* bar drag shifted every neighbour under
+  // the cursor and made ordinary reordering feel wrong, so the strip only opens when
+  // a drop here would actually dock: the bar is dragging something and the pointer
+  // is inside the dock zone (the chevron's slot plus `dockZoneSlack`, or the drawer).
+  readonly property bool dragNear: barDragInFlight && bar
+    && Model.pointInAnyRect({ x: bar.barDragScreenX, y: bar.barDragScreenY }, dockZoneRects())
+  readonly property bool padShown: dragNear || barDragOverMe || testDrag
+  readonly property int slotWidth: padShown ? expandedWidth : baseWidth
 
   property bool armed: false
   property string pendingDockId: ""
@@ -394,6 +406,39 @@ BarWidget {
       armed = false
       pendingDockId = ""
     }
+  }
+
+  // Anything that stops moving is not a drag: this is the second half of the freeze
+  // fix, so a lost release heals itself instead of holding the desktop hostage.
+  Timer {
+    id: dragWatchdog
+    interval: root.dragStallMs
+    onTriggered: {
+      if (!root.dragActive) return
+      console.log("bardock: drag idle for " + root.dragStallMs + "ms, clearing it")
+      root.reset()
+    }
+  }
+
+  onDragScreenXChanged: if (dragActive) dragWatchdog.restart()
+  onDragScreenYChanged: if (dragActive) dragWatchdog.restart()
+
+  // Everything a lost pointer release can leave behind, undone in one call. Also
+  // the escape hatch from a terminal: `omarchy-shell ozz1ee.bardock reset` works
+  // even when the desktop looks frozen, because it needs no pointer.
+  function reset() {
+    var wasDragging = dragActive
+    dragWatchdog.stop()
+    resetDockDrag()
+    armed = false
+    pendingDockId = ""
+    barDragId = ""
+    testDrag = false
+    // Only writable properties here: `barDragOverMe` and `barDragInFlight` are
+    // readonly bindings onto the bar, and assigning to one throws, which used to
+    // abort this function halfway (leaving the drawer open).
+    closePopup()
+    console.log("bardock: reset (wasDragging=" + wasDragging + ")")
   }
 
   function refreshSnapshot() {
@@ -606,6 +651,7 @@ BarWidget {
     dragGhostWidth = Math.max(1, ghostWidth)
     dragGhostHeight = Math.max(1, ghostHeight)
     dragActive = true
+    dragWatchdog.restart()
     var tile = tileFor(id)
     dragGlyph = tile ? tile.glyph : ""
     updateDockDrag(popupScenePoint)
@@ -788,6 +834,10 @@ BarWidget {
       slots: bar && bar.moduleSlots ? bar.moduleSlots.length : -1,
       ghostWindows: root.ghostWindows,
       instances: bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(root.moduleName).length : 0,
+      slotWidth: root.slotWidth,
+      padShown: root.padShown,
+      dragNear: root.dragNear,
+      dragStallMs: root.dragStallMs,
       dockZone: dockZoneRects(),
       barDragId: root.barDragId,
       reorderIndex: root.reorderIndex,
@@ -892,6 +942,7 @@ BarWidget {
   function ghostAt(id, screenX, screenY) {
     dragId = String(id)
     dragActive = true
+    dragWatchdog.restart()
     var dragTile = tileFor(id)
     dragGlyph = dragTile ? dragTile.glyph : ""
     dragScreenX = screenX
@@ -908,11 +959,12 @@ BarWidget {
 
   // Pretend a tile drag is in progress at a screen point, so the cell maths can be
   // checked against the live grid from a terminal.
+  // Read-only: which cell a screen point resolves to. It used to start a real drag
+  // and never clean it up, which is how a forgotten call left the desktop frozen.
   function fakeDrag(id, screenX, screenY) {
     var scene = { x: screenX - root.surfaceOrigin.x, y: screenY - root.surfaceOrigin.y }
-    beginDockDrag(String(id), scene, 46, 46)
-    updateDockDrag(scene)
-    return root.reorderIndex
+    if (!pointInsideSquare(scene)) return -1
+    return Model.cellIndexForPoint(scene, gridOrigin(), cellUsed, popupColumns, dockedCount)
   }
 
   function tileFor(id) {
@@ -943,7 +995,8 @@ BarWidget {
     function dropAt(id: string, x: int, y: int): string { return root.dropOnBar(id, x, y) }
     function ghost(id: string, x: int, y: int): bool { return root.ghostAt(id, x, y) }
     function ghosts(): string { return JSON.stringify(root.ghostsJson()) }
-    function clearGhost(): void { root.resetDockDrag() }
+    function clearGhost(): void { root.reset() }
+    function reset(): void { root.reset() }
     function testDrag(on: bool): void { root.testDrag = on }
     function zoneTest(id: string, x: int, y: int): bool { return root.finishBarDrag(id, x, y) }
     function reorderTest(id: string, index: int): bool { return root.reorder(id, index) }
@@ -979,9 +1032,9 @@ BarWidget {
     anchors.margins: Style.space(2)
     radius: Math.max(2, Style.cornerRadius)
     color: root.barDragOverMe ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
-    border.width: (root.barDragInFlight || root.testDrag) ? 1 : 0
+    border.width: root.padShown ? 1 : 0
     border.color: Color.accent
-    opacity: (root.barDragInFlight || root.testDrag) ? 1 : 0
+    opacity: root.padShown ? 1 : 0
     visible: opacity > 0
 
     Behavior on opacity {

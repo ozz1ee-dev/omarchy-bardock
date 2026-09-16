@@ -7,7 +7,7 @@ cmd=${1:-state}
 shift || true
 
 case $cmd in
-  state|registry|open|close|toggle|undockAll|dedupe|refresh|candidates)
+  state|registry|open|close|toggle|undockAll|dedupe|refresh|candidates|reset)
     omarchy-shell "$target" "$cmd" "$@"
     ;;
   dock|undock)

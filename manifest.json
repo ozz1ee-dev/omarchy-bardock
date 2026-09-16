@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ozz1ee.bardock",
   "name": "Bar dock",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": "ozz1ee",
   "license": "MIT",
   "description": "One chevron in the corner of the bar that opens a square dock for the icons you keep off the bar. Drop an icon on the chevron to dock it, drag it out again to put it back.",
@@ -31,7 +31,8 @@
       "dockOnNeighbourDrop": true,
       "armMs": 2500,
       "dockZoneSlack": 56,
-      "minCell": 20
+      "minCell": 20,
+      "dragStallMs": 2500
     },
     "schema": [
       {
@@ -82,6 +83,13 @@
         "label": "Smallest cell (px)",
         "defaultValue": 20,
         "description": "How small the icons may be drawn when a lot of them have to fit the screen. The drawer stays square."
+      },
+      {
+        "key": "dragStallMs",
+        "type": "number",
+        "label": "Drop the drag after (ms)",
+        "defaultValue": 2500,
+        "description": "A drag that has not moved for this long is treated as lost and cleared, so a dropped pointer release cannot leave the drawer holding your input."
       }
     ]
   }
