@@ -10,6 +10,10 @@
   it is believed (up to three checks, 120 ms apart) and any positive reading wins
   immediately. Tiles also remember, per widget, whether it has a face, so a tile
   that the relayout rebuilds starts on the face instead of the name.
+- Fix: the chevron's slot now keeps a **fixed width**. It used to widen while a
+  drag was in flight, which pushed every neighbouring slot sideways under the
+  cursor and made reordering icons along the bar feel unreliable. The landing pad is
+  now a highlight drawn inside the same width, so no slot on the bar ever moves.
 
 
 ## 0.7.3 - beta

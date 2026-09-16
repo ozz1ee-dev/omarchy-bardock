@@ -76,8 +76,10 @@ Two details that took a while to get right:
 ## Docking: the release point decides
 
 The chevron is an ordinary bar-widget slot, so the bar's drag machinery can
-target it, and its slot widens while a drag is in flight to act as a landing pad.
-But the *decision* is made by the plugin, from the release point, not by the
+target it, and its slot lights up as a landing pad while a drag that could dock
+here is in flight. The slot's width never changes - growing it moved every
+neighbouring slot out from under the cursor and made ordinary reordering on the bar
+unreliable. But the *decision* is made by the plugin, from the release point, not by the
 bar's nearest-slot resolution: that resolution is what makes a drop a few pixels
 before the chevron go to the neighbouring widget and a drop past the end of the
 bar vanish.

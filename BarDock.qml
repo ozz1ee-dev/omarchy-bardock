@@ -360,22 +360,23 @@ BarWidget {
     }
   }
   // The chevron is a bar slot, and a bar slot is the only thing the bar will
-  // drop onto - so the slot itself is the drop target. One icon is ~20px wide,
-  // which is a hard target to hit mid-drag, so it grows while a drag is in
-  // flight and the whole strip becomes a landing pad.
+  // drop onto - so the slot itself is the drop target. Its width is fixed on
+  // purpose: an earlier revision grew it while a drag was in flight, which moved
+  // every neighbouring slot out from under the cursor and made reordering icons on
+  // the bar feel unreliable. The landing pad below is a highlight only, drawn
+  // inside the same width, so nothing on the bar ever shifts.
   readonly property int baseWidth: Style.space(34)
-  readonly property int expandedWidth: Style.space(84)
-  // `testDrag` is a terminal seam: the landing pad and the wider slot only show
-  // while the bar is dragging, which a script cannot start without a mouse.
+  // `testDrag` is a terminal seam: the landing pad highlight only shows while the
+  // bar is dragging, which a script cannot start without a mouse.
   property bool testDrag: false
-  // Widening for the whole duration of *any* bar drag shifted every neighbour under
-  // the cursor and made ordinary reordering feel wrong, so the strip only opens when
-  // a drop here would actually dock: the bar is dragging something and the pointer
-  // is inside the dock zone (the chevron's slot plus `dockZoneSlack`, or the drawer).
+  // The pad is a highlight, not a resize: it only shows when a drop here would
+  // actually dock - the bar is dragging something and the pointer is inside the
+  // dock zone (the chevron's slot plus `dockZoneSlack`, or the drawer). The slot
+  // itself keeps `baseWidth`, so no other slot on the bar ever moves.
   readonly property bool dragNear: barDragInFlight && bar
     && Model.pointInAnyRect({ x: bar.barDragScreenX, y: bar.barDragScreenY }, dockZoneRects())
   readonly property bool padShown: dragNear || barDragOverMe || testDrag
-  readonly property int slotWidth: padShown ? expandedWidth : baseWidth
+  readonly property int slotWidth: baseWidth
 
   property bool armed: false
   property string pendingDockId: ""

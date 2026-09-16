@@ -54,9 +54,10 @@ patching of the shell.
 
 - **Click the chevron** to open and close the drawer. Escape also closes it.
 - **Dock an icon**: drag it from anywhere on the bar towards the corner. The
-  chevron's slot widens into a landing pad as soon as the drag starts, the drawer
+  chevron's slot lights up as a landing pad when a drop here would dock, the drawer
   opens under it, and the icon docks on release. The whole last stretch of the bar
-  counts, so you do not have to hit the glyph.
+  counts, so you do not have to hit the glyph - and the slot keeps a fixed width, so
+  nothing else on the bar moves while you drag.
 - **Undock an icon**: open the drawer and drag a tile out onto the bar. The bar's
   own insertion marker shows the slot it will take.
 - **Reorder**: drag a tile onto another cell inside the drawer. The dragged tile
