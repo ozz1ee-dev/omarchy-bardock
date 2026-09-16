@@ -151,7 +151,7 @@ omarchy-shell ozz1ee.bardock probeNow <id>           # a docked widget's face + 
 
 ## Tests
 
-`node --test test/` covers the pure logic: the dock/undock/reorder transforms on
+`node --test test/*.test.js` covers the pure logic: the dock/undock/reorder transforms on
 `shell.json` (settings preserved, `plugins[]` parking, `dockHomes`), the drop
 adjacency and drag-source rules, the square/grid maths and its screen ceiling,
 and the drop-target hit test. The QML side is verified live, through

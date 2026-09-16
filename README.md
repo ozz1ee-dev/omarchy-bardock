@@ -134,7 +134,7 @@ omarchy plugin remove ozz1ee.bardock --yes
 Tests run on plain Node, no dependencies:
 
 ```sh
-node --test test/           # 48 tests over the pure geometry and layout logic
+node --test test/*.test.js   # 48 tests over the pure geometry and layout logic
 omarchy plugin validate .   # the manifest contract
 ```
 

@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: "22"
       - name: model tests
-        run: node --test test/
+        run: node --test test/model.test.js
 
   manifest:
     runs-on: ubuntu-latest
