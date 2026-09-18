@@ -1,5 +1,18 @@
 # Bar dock
 
+## 0.8.1 - beta
+
+- Fix: **an icon restored onto the bar lands in front of the chevron again.** The bar's
+  "next visible" lookup skips the plugin's own slot, so a drawer tile released on the
+  chevron resolved to the widget behind it: the icon landed *after* the chevron and
+  walked the chevron one slot to the left on every restore. Both real-gesture
+  resolutions are now covered (a release on the chevron, which resolves to the slot
+  before it with `after=true`, and a release on the slot after it, which resolves to
+  that widget with `after=false`), and a restore always inserts in front of the plugin's
+  own entry - the 0.7.5 rule, the chevron stays in the corner. Verified with a real
+  pointer over two dock/undock cycles on the 4.0.0-4.0.2 generation; the 4.0.3+ path is
+  unaffected because without slot geometry it never resolves a slot candidate.
+
 ## 0.8.0 - beta
 
 - **Runs on both plugin API generations.** Omarchy 4.0.0-4.0.2 hands a third-party

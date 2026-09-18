@@ -947,10 +947,20 @@ BarWidget {
     var region = String(candidate.region || "")
     if (!name || !region) return false
 
+    // Dropped on our own chevron: the icon goes back in front of it (0.7.5).
+    if (name === root.moduleName) return root.undock(id, region, name)
+
     var beforeName = name
     if (after && root.legacyHost) {
       beforeName = bar.nextVisibleModuleName(region, name, root.ownSlot)
     }
+    // The bar's "next visible" lookup skips our own slot, so both a release on the
+    // chevron (candidate: the slot before it, after=true) and on the slot right
+    // after it (candidate: that widget, after=false) resolve to the widget past the
+    // chevron. The icon would land after it and walk the chevron one slot to the
+    // left on every restore - a restore onto the bar always goes in front of it.
+    var ownNext = root.hostNextVisibleName(region, root.moduleName, root.ownSlot)
+    if (ownNext !== "" && beforeName === ownNext) beforeName = root.moduleName
     return root.undock(id, region, beforeName)
   }
 
