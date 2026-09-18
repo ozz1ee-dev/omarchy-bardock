@@ -1,0 +1,98 @@
+{
+  "note": "Recorded host API shapes of the Omarchy Quattro plugin API, one entry per generation. Members were read from raw.githubusercontent.com/omacom/omarchy/<tag>/shell/... (v4.0.1 = legacy host injection, v4.0.4 = capability-scoped facades). Member kinds: function, object, array, number, bool, string, null.",
+  "tags": {
+    "legacy": "v4.0.1 and v4.0.2 (Bar.qml: target.bar = root, Ui/PluginBarApi.qml does not exist)",
+    "scoped": "v4.0.3 and later (Ui/PluginBarApi.qml + services/PluginShellApi.qml)"
+  },
+  "generations": {
+    "legacy": {
+      "bar": [
+        { "name": "moduleSlots", "kind": "array" },
+        { "name": "barDragSource", "kind": "null" },
+        { "name": "barDragTarget", "kind": "null" },
+        { "name": "barDragScreenX", "kind": "number" },
+        { "name": "barDragScreenY", "kind": "number" },
+        { "name": "dropMarkerRect", "kind": "function" },
+        { "name": "nextVisibleModuleName", "kind": "function" },
+        { "name": "barWidgetRegistry", "kind": "object" },
+        { "name": "layoutConfig", "kind": "object" },
+        { "name": "moduleWidgets", "kind": "function" },
+        { "name": "windowScreenPoint", "kind": "function" },
+        { "name": "barSize", "kind": "number" },
+        { "name": "vertical", "kind": "bool" },
+        { "name": "position", "kind": "string" },
+        { "name": "transparent", "kind": "bool" },
+        { "name": "foreground", "kind": "string" },
+        { "name": "fontFamily", "kind": "string" },
+        { "name": "run", "kind": "function" },
+        { "name": "activePopout", "kind": "null" },
+        { "name": "clickTargets", "kind": "array" },
+        { "name": "shell", "kind": "object" }
+      ],
+      "shell": [
+        { "name": "shellConfig", "kind": "object" },
+        { "name": "mutateShellConfig", "kind": "function" },
+        { "name": "serviceFor", "kind": "function" },
+        { "name": "barConfig", "kind": "object" }
+      ],
+      "expected": {
+        "hasLegacyHost": true,
+        "hasHostCatalogue": true,
+        "hasHostConfig": true,
+        "canHostMutate": true,
+        "pickerAvailable": false
+      }
+    },
+    "scoped": {
+      "bar": [
+        { "name": "foreground", "kind": "string" },
+        { "name": "barForeground", "kind": "string" },
+        { "name": "background", "kind": "string" },
+        { "name": "urgent", "kind": "string" },
+        { "name": "fontFamily", "kind": "string" },
+        { "name": "position", "kind": "string" },
+        { "name": "vertical", "kind": "bool" },
+        { "name": "barSize", "kind": "number" },
+        { "name": "transparent", "kind": "bool" },
+        { "name": "foregroundAnimationEnabled", "kind": "bool" },
+        { "name": "centerSectionRevealHeld", "kind": "bool" },
+        { "name": "activePopout", "kind": "null" },
+        { "name": "clickTargets", "kind": "array" },
+        { "name": "layoutConfig", "kind": "object" },
+        { "name": "foreignPopoutMarker", "kind": "object" },
+        { "name": "moduleWidgets", "kind": "function" },
+        { "name": "run", "kind": "function" },
+        { "name": "showTooltip", "kind": "function" },
+        { "name": "registerClickTarget", "kind": "function" },
+        { "name": "requestPopout", "kind": "function" },
+        { "name": "switchPanelFrom", "kind": "function" },
+        { "name": "targetBelongsToWindow", "kind": "function" },
+        { "name": "setCenterHoverRevealSuppressed", "kind": "function" },
+        { "name": "shell", "kind": "object" }
+      ],
+      "shell": [
+        { "name": "pluginId", "kind": "string" },
+        { "name": "appLibrary", "kind": "null" },
+        { "name": "bar", "kind": "object" },
+        { "name": "barConfig", "kind": "object" },
+        { "name": "idleConfig", "kind": "object" },
+        { "name": "serviceFor", "kind": "function" },
+        { "name": "firstPartyServiceFor", "kind": "function" },
+        { "name": "pluginShellForBarEntry", "kind": "function" },
+        { "name": "summon", "kind": "function" },
+        { "name": "hide", "kind": "function" },
+        { "name": "toggle", "kind": "function" },
+        { "name": "isPluginOpen", "kind": "function" },
+        { "name": "updateEntryInline", "kind": "function" },
+        { "name": "mutateShellConfig", "kind": "function" }
+      ],
+      "expected": {
+        "hasLegacyHost": false,
+        "hasHostCatalogue": false,
+        "hasHostConfig": false,
+        "canHostMutate": false,
+        "pickerAvailable": true
+      }
+    }
+  }
+}

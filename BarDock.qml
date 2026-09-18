@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
+import "Compat.js" as Compat
 
 // A chevron in the corner of the bar and a square dock behind it.
 //
@@ -17,7 +18,7 @@ import "Model.js" as Model
 //
 // Undocking is the reverse, and is done by dragging: the bar's own drag
 // machinery never reaches outside its own window, so a drag that starts in the
-// square draws its own ghost and hit-tests bar.moduleSlots itself.
+// square draws its own ghost and hit-tests root.hostSlots itself.
 BarWidget {
   id: root
   moduleName: "ozz1ee.bardock"
@@ -50,10 +51,70 @@ BarWidget {
   readonly property color foreground: bar ? bar.barForeground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  // ---- host API generation -------------------------------------------------
+  // Omarchy 4.0.0-4.0.2 injects the real bar object into a third-party widget;
+  // 4.0.3 replaced it with capability-scoped facades (PluginBarApi /
+  // PluginShellApi) that carry no shell config, no widget catalogue and no slot
+  // geometry. Every host access below goes through Compat, so one code path
+  // serves both generations. Detection asks for the members we use, never for a
+  // version string - see Compat.js.
+  readonly property bool legacyHost: Compat.hasLegacyHost(bar)
+  readonly property bool hostConfig: Compat.hasHostConfig(bar)
+  // Our own service instance is the only route to the widget catalogue on 4.0.3+
+  // (see Service.qml); on 4.0.0-4.0.2 the bar carries it directly.
+  readonly property var ownService: bar && bar.shell && typeof bar.shell.serviceFor === "function"
+    ? bar.shell.serviceFor(moduleName) : null
+  readonly property var ownServiceRegistry: ownService && ownService.barWidgetRegistry
+    ? ownService.barWidgetRegistry : null
+
   // The whole shell.json: bar.layout for the bar, plugins[] for what is parked.
-  readonly property var config: bar && bar.shell ? bar.shell.shellConfig : null
+  readonly property var config: hostConfig ? bar.shell.shellConfig : shellConfigFile.document
   readonly property var layout: Model.layoutOf(config)
-  readonly property var registryWidgets: bar && bar.barWidgetRegistry ? bar.barWidgetRegistry.widgets : null
+  readonly property var registryWidgets: Compat.catalogue(bar, ownServiceRegistry)
+
+  ConfigFile { id: shellConfigFile }
+
+  // Who writes the config: the host when it hands us the document, the file
+  // otherwise. 4.0.3+ has mutateShellConfig, but it answers `false` for a widget
+  // without the `bar` kind, so the facade is never treated as a writer.
+  readonly property bool canWrite: hostConfig || shellConfigFile.ready
+
+  function mutate(mutator) {
+    if (!root.canWrite) return false
+    if (root.hostConfig) {
+      bar.shell.mutateShellConfig(mutator)
+      return true
+    }
+    return shellConfigFile.mutate(mutator)
+  }
+
+  // Bar geometry the drop zone is hit-tested against, and the drag state the bar
+  // publishes while the user drags an icon along it. 4.0.3+ exposes neither, so
+  // the drag-to-dock gesture is legacy-only and these stay empty there.
+  readonly property var hostSlots: legacyHost && bar.moduleSlots ? bar.moduleSlots : []
+  readonly property var hostDragSource: legacyHost && bar.barDragSource ? bar.barDragSource : null
+  readonly property var hostDragTarget: legacyHost && bar.barDragTarget ? bar.barDragTarget : null
+  readonly property real hostDragX: legacyHost && bar.barDragScreenX !== undefined ? bar.barDragScreenX : 0
+  readonly property real hostDragY: legacyHost && bar.barDragScreenY !== undefined ? bar.barDragScreenY : 0
+
+  function hostDropMarkerRect(slot, after) {
+    return legacyHost && bar.dropMarkerRect ? bar.dropMarkerRect(slot, after) : null
+  }
+
+  function hostNextVisibleName(region, name, ownSlot) {
+    return legacyHost && bar.nextVisibleModuleName ? bar.nextVisibleModuleName(region, name, ownSlot) : ""
+  }
+
+  // ---- dock picker (the generations without slot geometry) ------------------
+  // Without slot geometry an icon cannot be dragged onto the chevron any more, so
+  // the drawer offers what is on the bar instead: right-click the chevron (or
+  // `omarchy-shell ozz1ee.bardock picker`) opens the list, one click docks.
+  property bool pickerOpen: false
+  readonly property bool pickerAvailable: bar !== null && !root.legacyHost
+  readonly property var dockableIds: Compat.dockableIds(
+    bar ? bar.layoutConfig : null,
+    moduleName,
+    Model.dockedIds(config, moduleName))
 
   readonly property var dockedList: Model.visibleDocked(config, moduleName)
   readonly property int dockedCount: dockedList.length
@@ -89,6 +150,7 @@ BarWidget {
   function closePopup() {
     if (dragActive) return
     popupOpen = false
+    pickerOpen = false
   }
   function togglePopup() { popupOpen ? closePopup() : openPopup() }
 
@@ -183,17 +245,17 @@ BarWidget {
   // ---- dock / undock -------------------------------------------------------
   // Keep a decided dock in the config until it actually lands.
   function markPendingDock(id) {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
+    if (!root.canWrite) return false
     var ok = false
-    bar.shell.mutateShellConfig(function(document) {
+    root.mutate(function(document) {
       ok = Model.setPendingDock(document, root.moduleName, id)
     })
     return ok
   }
 
   function clearPendingDock(id) {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
-    bar.shell.mutateShellConfig(function(document) {
+    if (!root.canWrite) return false
+    root.mutate(function(document) {
       Model.clearPendingDock(document, root.moduleName)
     })
     return true
@@ -214,11 +276,11 @@ BarWidget {
   }
 
   function dock(id) {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") {
+    if (!root.canWrite) {
       return false
     }
     var moved = false
-    bar.shell.mutateShellConfig(function(document) {
+    root.mutate(function(document) {
       moved = Model.dockInto(document, root.moduleName, id) !== null
       Model.sweepDockMarkers(document, root.moduleName)
       Model.clearPendingDock(document, root.moduleName)
@@ -230,9 +292,9 @@ BarWidget {
 
   // `beforeName` empty means "at the end of that section".
   function undock(id, section, beforeName) {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
+    if (!root.canWrite) return false
     var moved = false
-    bar.shell.mutateShellConfig(function(document) {
+    root.mutate(function(document) {
       moved = Model.undockFrom(document, root.moduleName, id, section, beforeName) !== null
       Model.sweepDockMarkers(document, root.moduleName)
     })
@@ -246,9 +308,9 @@ BarWidget {
   // Drag inside the square: docked[] is the draw order, so moving the id in that
   // list is the whole operation.
   function reorder(id, index) {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
+    if (!root.canWrite) return false
     var moved = false
-    bar.shell.mutateShellConfig(function(document) {
+    root.mutate(function(document) {
       moved = Model.reorderDocked(document, root.moduleName, id, index)
     })
     console.log("bardock: reorder " + id + " -> " + index + " moved=" + moved)
@@ -259,8 +321,8 @@ BarWidget {
   function undockAll() {
     var ids = Model.dockedIds(config, moduleName)
     if (ids.length === 0) return 0
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return 0
-    bar.shell.mutateShellConfig(function(document) {
+    if (!root.canWrite) return 0
+    root.mutate(function(document) {
       while (Model.dockedIds(document, root.moduleName).length > 0) {
         var next = Model.dockedIds(document, root.moduleName)[0]
         Model.undockFrom(document, root.moduleName, next, "right", "")
@@ -271,8 +333,8 @@ BarWidget {
 
   // ---- the chevron as the bar's own drop target ----------------------------
   readonly property var ownSlot: {
-    if (!bar || !bar.moduleSlots) return null
-    var slots = bar.moduleSlots
+    if (!bar || !root.hostSlots) return null
+    var slots = root.hostSlots
     for (var i = 0; i < slots.length; i++) {
       var slot = slots[i]
       if (slot && slot.activeItem === root) return slot
@@ -280,26 +342,26 @@ BarWidget {
     return null
   }
 
-  readonly property bool barDragOverMe: !!(bar && bar.barDragTarget && ownSlot !== null && bar.barDragTarget === ownSlot)
+  readonly property bool barDragOverMe: !!(bar && root.hostDragTarget && ownSlot !== null && root.hostDragTarget === ownSlot)
   // The widget the bar is dragging right now (its source slot's id). Read while
   // the drag hovers the chevron: the bar clears it on release, before it writes
   // the new layout, so this is the only moment the id is available.
   readonly property string dragSourceName: {
-    if (!bar || !bar.barDragSource) return ""
-    return String(bar.barDragSource.moduleName || "")
+    if (!bar || !root.hostDragSource) return ""
+    return String(root.hostDragSource.moduleName || "")
   }
   // The slot the bar resolved the current drag to. It is cleared on release, so
   // the last non-empty value is where the drop landed.
   readonly property string dragTargetName: {
-    if (!bar || !bar.barDragTarget) return ""
-    return String(bar.barDragTarget.moduleName || "")
+    if (!bar || !root.hostDragTarget) return ""
+    return String(root.hostDragTarget.moduleName || "")
   }
   property string lastDropTarget: ""
 
   // Only a live bar drag makes these signals mean anything: at startup (or after the
   // bar rebuilds itself) a stale drag target would otherwise arm a dock that nobody
   // asked for, and the next unrelated config write would dock that widget.
-  readonly property bool barDragLive: !!(bar && bar.barDragSource)
+  readonly property bool barDragLive: !!(bar && root.hostDragSource)
   onDragTargetNameChanged: if (dragTargetName !== "" && root.barDragLive) lastDropTarget = dragTargetName
   onDragSourceNameChanged: {
     // A new drag starts: forget the previous drop so a stale target can never
@@ -310,13 +372,13 @@ BarWidget {
     }
   }
 
-  readonly property bool barDragInFlight: !!(bar && bar.barDragSource) && !barDragOverMe
+  readonly property bool barDragInFlight: !!(bar && root.hostDragSource) && !barDragOverMe
 
   // The bar publishes the drag's pointer position while it runs and clears
   // everything on release, so both the id being dragged and the release point are
   // latched here and used to decide the drop.
-  readonly property var barDragPoint: (bar && bar.barDragSource)
-    ? { x: bar.barDragScreenX, y: bar.barDragScreenY }
+  readonly property var barDragPoint: (bar && root.hostDragSource)
+    ? { x: root.hostDragX, y: root.hostDragY }
     : null
   property string barDragId: ""
   property real barDragX: 0
@@ -408,11 +470,20 @@ BarWidget {
     return true
   }
 
-  Connections {
-    target: root.bar
-    function onBarDragSourceChanged() {
-      if (root.bar && root.bar.barDragSource) return
-      if (root.barDragId !== "") root.finishBarDrag(root.barDragId, root.barDragX, root.barDragY)
+  // The bar publishes its drag state only on the generations that inject the real
+  // bar. A Connections whose target cannot resolve the handler name logs a QML
+  // warning on every rebuild, so the element is only built where it can work.
+  Loader {
+    active: root.legacyHost
+
+    sourceComponent: Component {
+      Connections {
+        target: root.bar
+        function onBarDragSourceChanged() {
+          if (root.bar && root.hostDragSource) return
+          if (root.barDragId !== "") root.finishBarDrag(root.barDragId, root.barDragX, root.barDragY)
+        }
+      }
     }
   }
   // The chevron is a bar slot, and a bar slot is the only thing the bar will
@@ -430,7 +501,7 @@ BarWidget {
   // dock zone (the chevron's slot plus `dockZoneSlack`, or the drawer). The slot
   // itself keeps `baseWidth`, so no other slot on the bar ever moves.
   readonly property bool dragNear: barDragInFlight && bar
-    && Model.pointInAnyRect({ x: bar.barDragScreenX, y: bar.barDragScreenY }, dockZoneRects())
+    && Model.pointInAnyRect({ x: root.hostDragX, y: root.hostDragY }, dockZoneRects())
   readonly property bool padShown: dragNear || barDragOverMe || testDrag
   readonly property int slotWidth: baseWidth
 
@@ -462,7 +533,7 @@ BarWidget {
       // The bar's nearest-slot resolution can point at this slot while the pointer is
       // still over the neighbouring icon, and opening the drawer there is what used to
       // disturb reordering. Open only when the pointer itself is on the chevron.
-      if (!popupOpen && Model.pointInAnyRect({ x: bar.barDragScreenX, y: bar.barDragScreenY }, openZoneRects())) {
+      if (!popupOpen && Model.pointInAnyRect({ x: root.hostDragX, y: root.hostDragY }, openZoneRects())) {
         openPopup()
       }
       return
@@ -595,17 +666,25 @@ BarWidget {
 
     // A widget the bar put back on its own (dragged out of the square and left
     // there, or restored by hand) must not stay in docked[] as well.
-    if (bar && bar.shell && typeof bar.shell.mutateShellConfig === "function"
+    if (root.canWrite
         && Model.needsPrune(document, root.moduleName)) {
-      bar.shell.mutateShellConfig(function(next) {
+      root.mutate(function(next) {
         Model.pruneDocked(next, root.moduleName)
       })
     }
   }
 
-  Connections {
-    target: root.bar && root.bar.shell ? root.bar.shell : null
-    function onShellConfigChanged() { root.handleConfigChange() }
+  // Same rule for the config signal: only the real ShellRoot has it. On 4.0.3+
+  // the ConfigFile's own file watcher is what reports a change (onConfigChanged).
+  Loader {
+    active: root.hostConfig
+
+    sourceComponent: Component {
+      Connections {
+        target: root.bar.shell
+        function onShellConfigChanged() { root.handleConfigChange() }
+      }
+    }
   }
 
   Component.onCompleted: root.refreshSnapshot()
@@ -628,10 +707,10 @@ BarWidget {
   }
 
   function adoptDockedEntries() {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return 0
+    if (!root.canWrite) return 0
     if (root.pendingAdoption().length === 0) return 0
     var adopted = 0
-    bar.shell.mutateShellConfig(function(document) {
+    root.mutate(function(document) {
       adopted = Model.adoptDocked(document, root.moduleName)
       Model.sweepDockMarkers(document, root.moduleName)
     })
@@ -647,7 +726,12 @@ BarWidget {
   // The bar is injected after completion; if the config arrives even later, seed
   // on the first change we see instead of reading it as a drop.
   onConfigChanged: {
-    if (!root.seeded) root.refreshSnapshot()
+    // On the file-backed generations the config source *is* the file, so a change
+    // here is the same event the shell's own shellConfigChanged is on <=4.0.2.
+    // On legacy the ordering matters and handleConfigChange stays on the shell
+    // signal only (it would otherwise see the post-drop layout as "previous").
+    if (!root.hostConfig) root.handleConfigChange()
+    else if (!root.seeded) root.refreshSnapshot()
     root.adoptDockedEntries()
   }
 
@@ -723,10 +807,10 @@ BarWidget {
 
   function slotCandidates() {
     var out = []
-    if (!bar || !bar.moduleSlots) return out
+    if (!bar || !root.hostSlots) return out
     var mine = root.ownSlot
-    for (var i = 0; i < bar.moduleSlots.length; i++) {
-      var slot = bar.moduleSlots[i]
+    for (var i = 0; i < root.hostSlots.length; i++) {
+      var slot = root.hostSlots[i]
       if (!slot || slot === mine || !slot.activeItem) continue
       if (slot.visible !== true || slot.width <= 0 || slot.height <= 0) continue
       // A slot mid-destruction (a widget just docked) reports an empty id; it is
@@ -800,7 +884,7 @@ BarWidget {
       dragSlot = candidate && candidate.slot ? candidate.slot : null
       dragAfter = target ? target.after : false
       dragMarker = candidate && dragSlot && bar && typeof bar.dropMarkerRect === "function"
-        ? bar.dropMarkerRect(dragSlot, target.after)
+        ? root.hostDropMarkerRect(dragSlot, target.after)
         : null
       reorderIndex = -1
       return
@@ -819,7 +903,12 @@ BarWidget {
   function finishDockDrag(popupScenePoint) {
     var id = dragId
     var wasActive = dragActive
-    var target = wasActive ? dropTargetAt(toScreen(popupScenePoint)) : null
+    var screen = toScreen(popupScenePoint)
+    var target = wasActive ? dropTargetAt(screen) : null
+    // Without slot geometry there is no candidate to land on, but a release over
+    // the bar strip still means "put it back": the entry returns to the end of the
+    // right section, where the chevron lives.
+    var backOnBar = wasActive && !target && !root.legacyHost && barStripContains(screen)
     var index = reorderIndex
     var fromIndex = dragFromIndex
     resetDockDrag()
@@ -829,8 +918,25 @@ BarWidget {
       placeOnBar(id, target.slot, target.after)
       return
     }
+    if (backOnBar) {
+      root.undock(id, "right", "")
+      return
+    }
     // Dropped inside the square: take that cell, if it is a different one.
     if (wasActive && index >= 0 && fromIndex >= 0 && index !== fromIndex) root.reorder(id, index)
+  }
+
+  // Is this screen point over the bar surface? The drag-out gesture on the
+  // generations that expose no slot geometry needs it: the bar's own slot
+  // positions are unknown, the bar's screen rectangle is not.
+  function barStripContains(screenPoint) {
+    var window = barWindow()
+    var screen = window ? window.screen : null
+    if (!screen) return false
+    var size = bar ? bar.barSize : Style.bar.sizeHorizontal
+    var slack = Style.space(8)
+    return screenPoint.x >= screen.x && screenPoint.x <= screen.x + screen.width
+      && screenPoint.y >= screen.y - slack && screenPoint.y <= screen.y + size + slack
   }
 
   // The layout half of a drop: put `id` back in the section the candidate lives
@@ -842,7 +948,7 @@ BarWidget {
     if (!name || !region) return false
 
     var beforeName = name
-    if (after && bar && typeof bar.nextVisibleModuleName === "function") {
+    if (after && root.legacyHost) {
       beforeName = bar.nextVisibleModuleName(region, name, root.ownSlot)
     }
     return root.undock(id, region, beforeName)
@@ -956,8 +1062,19 @@ BarWidget {
       sections: Model.layoutIds(document),
       parked: Model.idsOf(Model.pluginsList(document)),
       registryKnown: root.registryWidgets !== null,
+      hostGeneration: root.legacyHost ? "legacy" : (root.bar ? "scoped" : "absent"),
+      configSource: root.hostConfig ? "host" : (shellConfigFile.ready ? "file" : "none"),
+      canWrite: root.canWrite,
+      serviceRegistry: root.ownServiceRegistry !== null,
+      dockable: root.dockableIds.length,
+      pickerOpen: root.pickerOpen,
+      configFileWrites: shellConfigFile.writes,
+      configTextLength: shellConfigFile.text.length,
+      configRefreshes: shellConfigFile.refreshes,
+      configFailures: shellConfigFile.failures,
+      configPath: shellConfigFile.path,
       instances: bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(root.moduleName).length : -1,
-      slots: bar && bar.moduleSlots ? bar.moduleSlots.length : -1,
+      slots: bar && root.hostSlots ? root.hostSlots.length : -1,
       ghostWindows: root.ghostWindows,
       instances: bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(root.moduleName).length : 0,
       tileDragging: root.anyTileDragging(),
@@ -980,7 +1097,7 @@ BarWidget {
   // the chevron: arm on the source id (the hover would have set it), then move
   // that entry to sit beside us.
   function simulateLanding(id) {
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return false
+    if (!root.canWrite) return false
     var own = Model.findEntry(config, moduleName)
     if (!own || own.kind !== "bar") return false
     armed = true
@@ -989,7 +1106,7 @@ BarWidget {
     // slot, which is what makes the drop count.
     lastDropTarget = String(root.moduleName)
     armTimer.restart()
-    bar.shell.mutateShellConfig(function(document) {
+    root.mutate(function(document) {
       var existing = Model.findEntry(document, id)
       if (!existing) return
       var moved = existing.entry
@@ -1080,7 +1197,7 @@ BarWidget {
     dragSlot = candidate && candidate.slot ? candidate.slot : null
     dragAfter = target ? target.after : false
     dragMarker = dragSlot && bar && typeof bar.dropMarkerRect === "function"
-      ? bar.dropMarkerRect(dragSlot, dragAfter)
+      ? root.hostDropMarkerRect(dragSlot, dragAfter)
       : null
     return dragMarker !== null
   }
@@ -1112,6 +1229,9 @@ BarWidget {
     function hide(): void { root.closePopup() }
     function toggle(): void { root.togglePopup() }
     function refresh(): void { root.refreshSnapshot() }
+    function picker(): void { root.pickerOpen = true; root.openPopup() }
+    function dockable(): string { return JSON.stringify(root.dockableIds) }
+    function pick(id: string): string { return root.dock(id) ? "ok" : "failed" }
     function dock(id: string): void { root.dock(id) }
     function undock(id: string): void { root.undock(id, "right", "") }
     function undockAll(): void { root.undockAll() }
@@ -1139,8 +1259,8 @@ BarWidget {
     function zoneRects(): string { return JSON.stringify(root.dockZoneRects()) }
     function dedupe(): int {
       var removed = 0
-      if (root.bar && root.bar.shell && typeof root.bar.shell.mutateShellConfig === "function")
-        root.bar.shell.mutateShellConfig(function(document) { removed = Model.dedupeLayout(document) })
+      if (root.canWrite)
+        root.mutate(function(document) { removed = Model.dedupeLayout(document) })
       return removed
     }
   }
@@ -1178,12 +1298,17 @@ BarWidget {
     slotSize: vertical ? Style.bar.iconSlot : -1
     iconComponent: chevronGlyph
     active: root.barDragOverMe
-    tooltipText: root.dockedCount === 0
+    tooltipText: (root.dockedCount === 0
       ? "Bar dock"
-      : "Bar dock - " + root.dockedCount + " hidden"
+      : "Bar dock - " + root.dockedCount + " hidden")
+      + (root.pickerAvailable ? " (right-click to dock one)" : "")
 
     onPressed: function(button) {
       if (button === Qt.LeftButton) root.togglePopup()
+      else if (button === Qt.RightButton && root.pickerAvailable) {
+        root.pickerOpen = !root.pickerOpen
+        if (root.pickerOpen) root.openPopup()
+      }
     }
   }
 
@@ -1302,13 +1427,118 @@ BarWidget {
         }
       }
 
+      // Dock picker. Only on the generations that no longer hand a widget the
+      // bar's slot geometry: there an icon cannot be dragged onto the chevron, so
+      // the list of what is on the bar is offered instead.
+      Rectangle {
+        id: pickerPanel
+        visible: root.pickerAvailable && root.pickerOpen
+        anchors.fill: parent
+        color: Color.popups.background
+        radius: Style.cornerRadius
+        border.width: Math.max(1, Style.space(1))
+        border.color: Color.popups.border
+        z: 20
+
+        ListView {
+          id: pickerListView
+          anchors.fill: parent
+          anchors.margins: Style.space(6)
+          clip: true
+          model: root.dockableIds
+          spacing: 1
+
+          delegate: Rectangle {
+            required property string modelData
+
+            width: pickerListView.width
+            height: Style.bar.iconCanvas
+            radius: Math.max(2, Style.cornerRadius)
+            color: pickerRow.containsMouse ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
+
+            Text {
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(6)
+              anchors.rightMargin: Style.space(6)
+              verticalAlignment: Text.AlignVCenter
+              text: Model.displayLabel(modelData)
+              textFormat: Text.PlainText
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
+            MouseArea {
+              id: pickerRow
+              anchors.fill: parent
+              hoverEnabled: true
+              onClicked: {
+                root.dock(modelData)
+                root.pickerOpen = false
+              }
+            }
+          }
+        }
+
+        Text {
+          anchors.centerIn: parent
+          visible: root.dockableIds.length === 0
+          width: parent.width - Style.space(16)
+          text: "Every bar widget is already hidden."
+          textFormat: Text.PlainText
+          color: root.foreground
+          opacity: 0.7
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          wrapMode: Text.WordWrap
+        }
+      }
+
+      // Trigger for the picker: a small plus in the square's corner. The chevron
+      // answers a right-click too, but with every cell full there would be nothing
+      // to click otherwise.
+      Rectangle {
+        id: pickerButton
+        visible: !pickerPanel.visible && root.pickerAvailable
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: Style.space(3)
+        width: Style.space(14)
+        height: Style.space(14)
+        radius: Math.max(2, Style.cornerRadius)
+        color: pickerButtonMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
+        z: 15
+
+        Text {
+          anchors.centerIn: parent
+          text: "+"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+
+        MouseArea {
+          id: pickerButtonMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          onClicked: {
+            root.pickerOpen = true
+            root.openPopup()
+          }
+        }
+      }
+
       Text {
         anchors.centerIn: parent
-        visible: root.dockedCount === 0
+        visible: root.dockedCount === 0 && !pickerPanel.visible
         width: squareCard.width - Style.space(24)
         text: root.barDragOverMe
           ? "Release to dock this icon"
-          : "Nothing docked yet. Drag a bar icon onto the chevron."
+          : (root.pickerAvailable
+            ? "Nothing docked yet. Right-click the chevron to dock a bar icon."
+            : "Nothing docked yet. Drag a bar icon onto the chevron.")
         textFormat: Text.PlainText
         color: root.foreground
         font.family: root.fontFamily

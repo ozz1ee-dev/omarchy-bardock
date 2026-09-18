@@ -14,6 +14,9 @@ a terminal.
 | `DockGhost.qml` | The drag ghost, a small window that follows the pointer while a tile is dragged out. |
 | `Chevron.qml` | The mark: two strokes drawn as a `Shape`/`PathPolyline`, so it is an arrowhead and not a font glyph. |
 | `Model.js` | All the logic that has no Qt in it: geometry, layout transforms, drop zones, hit tests. This is what `node --test` exercises. |
+| `Compat.js` | Which plugin API generation are we on, decided from the members the bar injects, plus the layout helpers the dock picker needs. Qt-free, tested by `node --test`. |
+| `ConfigFile.qml` | `~/.config/omarchy/shell.json` as a file: read, read-modify-write, and a nudge to the shell to re-read it. Used on the releases whose facade refuses a widget a config mutation. |
+| `Service.qml` | One reference and nothing else: the widget catalogue, which the host injects into an entry-point instance that declares the property. This is how the drawer keeps real widget faces where the bar no longer publishes the catalogue. |
 
 ## Why a docked icon is parked, not removed
 
@@ -29,6 +32,32 @@ for it.
 Each dock also records where the widget came from - the section and the id that
 followed it - in the widget's own `dockHomes` map, so undocking returns the icon
 to its old neighbours instead of appending it to the far end of the bar.
+
+## Two plugin API generations
+
+The bar injects an object into every bar widget, and what that object *is*
+changed in Omarchy 4.0.3:
+
+| the widget's `bar` | 4.0.0 - 4.0.2 | 4.0.3 and later |
+| --- | --- | --- |
+| identity | the real host bar (`Bar.qml`: `target.bar = root`) | a facade (`Ui/PluginBarApi.qml`) |
+| the whole `shell.json` | `bar.shell.shellConfig` (the host `ShellRoot`) | not available; `bar.shell.barConfig` carries the `bar` half only |
+| config mutation | `bar.shell.mutateShellConfig(fn)` | present but answers `false` for a plain bar widget |
+| widget catalogue | `bar.barWidgetRegistry` | not available |
+| slot list and drag state | `bar.moduleSlots`, `bar.barDragSource`, `bar.barDragTarget`, `bar.barDragScreenX/Y`, `bar.dropMarkerRect` | not available |
+| shared by both | `bar.barSize`, `bar.vertical`, `bar.position`, `bar.layoutConfig`, `bar.moduleWidgets(own)` | same, through the facade |
+
+The plugin never asks which version it is on. `Compat.js` asks for the members it
+actually uses - `moduleSlots` for the real host bar, `barWidgetRegistry` for the
+catalogue, `shell.shellConfig` for the document - because a probe that guesses a
+version is wrong again on the next release, and a probe that asks for what it
+needs is right for as long as the API keeps its shape. `test/compat.test.js` runs
+that detection against the recorded member lists of both generations, so a
+release that changes the injected object cannot quietly move the plugin onto the
+wrong path.
+
+The consequence in the UI is one thing only: without slot geometry an icon cannot
+be dragged onto the chevron (see "Docking" below), so the drawer grows a picker.
 
 ## Geometry: always a square, limited only by the screen
 
@@ -59,9 +88,12 @@ drag ghost windows - is in screen coordinates. The crossing happens in one place
 (`surfaceOrigin` / `toScreen`), and the drawer remembers its own position so the
 bar-facing maths can convert.
 
-Each tile instantiates the real widget component from `bar.barWidgetRegistry`
-with the same `bar`, `moduleName` and `settings` the bar injects into a slot, so
-a docked icon still ticks, still opens its panel, and keeps its settings.
+Each tile instantiates the real widget component with the same `bar`,
+`moduleName` and `settings` the bar injects into a slot, so a docked icon still
+ticks, still opens its panel, and keeps its settings. The component comes from
+the widget catalogue: `bar.barWidgetRegistry` where the bar publishes it, and
+otherwise from this plugin's own service instance, which receives the same
+catalogue because it declares the property the host injects.
 
 Two details that took a while to get right:
 
@@ -114,6 +146,19 @@ it landed.
 
 ## Writes that stick
 
+There are two places a write can go, and one rule picks between them: use the host
+when the host hands the document over, otherwise the file.
+
+- On 4.0.0-4.0.2 that is `bar.shell.mutateShellConfig(fn)`: the host applies the
+  change to its own config and persists it.
+- On 4.0.3 and later a facade's `mutateShellConfig` answers `false` to a plain
+  bar widget, and `barConfig` is a detached copy of half the document, so the
+  plugin reads `~/.config/omarchy/shell.json`, applies the change to that copy and
+  writes it back, then asks the shell to re-read the file. Only the entry being
+  docked, undocked or reordered is touched.
+
+Everything below applies to both paths.
+
 `shell.json` writes are asynchronous and a write issued inside the shell's own
 file-change callback is lost, so:
 
@@ -134,6 +179,9 @@ omarchy-shell ozz1ee.bardock state | jq             # what the drawer shows
 omarchy-shell ozz1ee.bardock registry | jq          # widget catalogue the shell exposes
 omarchy-shell ozz1ee.bardock dedupe                 # repair doubled layout entries
 omarchy-shell ozz1ee.bardock sizeFor <n>            # drawer geometry for n icons
+omarchy-shell ozz1ee.bardock dockable | jq          # what the picker would offer
+omarchy-shell ozz1ee.bardock pick <id>              # dock it, as clicking it there does
+omarchy-shell ozz1ee.bardock picker                 # open the drawer showing that list
 ```
 
 `bin/bardock` wraps these.
@@ -158,6 +206,12 @@ omarchy-shell ozz1ee.bardock probeNow <id>           # a docked widget's face + 
 
 ## Known limits
 
+- On 4.0.3 and later an icon cannot be dragged onto the chevron: the bar
+  publishes no drag state and no slot list to a third-party widget, so docking is
+  the picker (right-click the chevron, the plus in the drawer, or `dock <id>`).
+- On those same releases a tile dragged out of the drawer lands at the end of the
+  right section rather than in a previewed slot: without `moduleSlots` there is no
+  insertion marker to compute, only the bar's screen rectangle to hit-test.
 - Widgets whose bar face is wider than a cell (a 90 px system monitor) are
   centred in the cell rather than scaled; raise `cell` if that bothers you.
 - Custom layout entries (`type: qml` / `command`, no manifest) have no component
@@ -174,7 +228,9 @@ omarchy-shell ozz1ee.bardock probeNow <id>           # a docked widget's face + 
 `node --test test/*.test.js` covers the pure logic: the dock/undock/reorder transforms on
 `shell.json` (settings preserved, `plugins[]` parking, `dockHomes`), the drop
 adjacency and drag-source rules, the square/grid maths and its screen ceiling,
-and the drop-target hit test. The QML side is verified live, through
+the drop-target hit test, and - in `test/compat.test.js`, against the recorded
+host shapes in `test/fixtures/host-api.json` - which plugin API generation the
+plugin is on and what the picker may offer. The QML side is verified live, through
 `omarchy-shell ozz1ee.bardock state`, the shell's log
 (`journalctl -t omarchy-shell | grep bardock`) and the bar's own geometry
 (`omarchy-shell shell debugBarGeometry`).

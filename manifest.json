@@ -2,15 +2,17 @@
   "schemaVersion": 1,
   "id": "ozz1ee.bardock",
   "name": "Bar dock",
-  "version": "0.7.8",
+  "version": "0.8.0",
   "author": "ozz1ee",
   "license": "MIT",
   "description": "One chevron in the corner of the bar that opens a square dock for the icons you keep off the bar. Drop an icon on the chevron to dock it, drag it out again to put it back.",
   "kinds": [
-    "bar-widget"
+    "bar-widget",
+    "service"
   ],
   "entryPoints": {
-    "barWidget": "BarDock.qml"
+    "barWidget": "BarDock.qml",
+    "service": "Service.qml"
   },
   "barWidget": {
     "displayName": "Bar dock",

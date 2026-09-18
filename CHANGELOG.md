@@ -1,5 +1,40 @@
 # Bar dock
 
+## 0.8.0 - beta
+
+- **Runs on both plugin API generations.** Omarchy 4.0.0-4.0.2 hands a third-party
+  bar widget the real bar object; 4.0.3 replaced that with capability-scoped
+  facades that carry no shell config, no widget catalogue and no slot geometry.
+  The plugin now detects which one it is talking to by asking for the members it
+  uses - never by a version string - and keeps one code path for both. On the
+  newer releases the drawer used to come up empty with the docked icons still
+  parked in `shell.json`.
+- **The icons keep their faces on 4.0.3+.** Where the bar no longer publishes its
+  widget catalogue to a widget, this plugin's own `service` instance receives it
+  (the host injects it into any entry-point instance that declares the property)
+  and the drawer reads the catalogue from there. `Service.qml` exists for that
+  one reference: it runs no process, holds no state and touches no file.
+- **The config is written through whichever surface is available.** On
+  4.0.0-4.0.2 that is the host's own `mutateShellConfig`; on 4.0.3+ the facade
+  refuses a plain bar widget a config mutation, so the plugin reads and writes
+  `~/.config/omarchy/shell.json` itself (the file the shell watches) and asks the
+  shell to re-read it. Only the entry being docked, undocked or reordered is
+  touched, and the write is verified against the file afterwards.
+- **Docking without slot geometry.** On 4.0.3+ there is no drag state and no slot
+  list to hit-test, so an icon cannot be dragged onto the chevron any more:
+  right-clicking the chevron (or the small plus in the drawer's corner) opens a
+  list of the widgets that are on the bar, and one click docks that widget.
+  Dragging a tile out of the drawer and releasing it over the bar still puts it
+  back, at the end of the right section. On 4.0.0-4.0.2 every gesture is exactly
+  what it always was.
+- **Quieter on the newer releases.** The two `Connections` onto the bar (drag
+  source, shell config) are only instantiated where those members exist, instead
+  of logging a QML warning on every bar rebuild.
+- Tests: `test/compat.test.js` (14 tests) runs the detection against the recorded
+  host shapes of both generations (`test/fixtures/host-api.json`), so a release
+  that changes the injected object cannot quietly flip the plugin onto the wrong
+  path. CI now runs both test files.
+
 ## 0.7.8 - beta
 
 - Fix: **the drawer survives the plugin being disabled and enabled again.** Disabling a
