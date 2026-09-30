@@ -1230,6 +1230,13 @@ BarWidget {
     return null
   }
 
+  // Parked widgets are absent from the host bar's moduleSlots. Give their
+  // keyboard shortcuts a way to reach the same live instance as a tile click.
+  function toggleDockedWidget(id) {
+    var tile = tileFor(id)
+    return !!tile && tile.togglePanel()
+  }
+
   IpcHandler {
     target: "ozz1ee.bardock"
 
@@ -1243,6 +1250,7 @@ BarWidget {
     function dockable(): string { return JSON.stringify(root.dockableIds) }
     function pick(id: string): string { return root.dock(id) ? "ok" : "failed" }
     function dock(id: string): void { root.dock(id) }
+    function toggleDockedWidget(id: string): bool { return root.toggleDockedWidget(id) }
     function undock(id: string): void { root.undock(id, "right", "") }
     function undockAll(): void { root.undockAll() }
     function state(): string { return root.stateJson() }

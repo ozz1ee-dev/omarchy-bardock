@@ -88,6 +88,14 @@ Item {
     ? String(metadata.displayName)
     : Model.displayLabel(tileId)
   readonly property bool liveLoaded: widgetLoader.item !== null
+  // Let shortcuts reach this widget's panel even when the drawer is closed.
+  // The Loader stays active while its parent PanelWindow is hidden.
+  function togglePanel() {
+    var item = widgetLoader.item
+    if (!item || typeof item.toggle !== "function") return false
+    item.toggle()
+    return true
+  }
   readonly property real liveWidth: widgetLoader.item ? (widgetLoader.item.implicitWidth || 0) : 0
   readonly property real liveHeight: widgetLoader.item ? (widgetLoader.item.implicitHeight || 0) : 0
   readonly property bool liveVisible: liveLoaded && tile.faceVisible

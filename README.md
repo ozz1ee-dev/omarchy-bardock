@@ -106,11 +106,19 @@ The dock picker, and the verbs behind it, without a pointer:
 omarchy-shell ozz1ee.bardock dockable          # what the picker would offer
 omarchy-shell ozz1ee.bardock pick <id>         # dock it, as clicking it there does
 omarchy-shell ozz1ee.bardock picker            # open the drawer showing that list
+omarchy-shell ozz1ee.bardock toggleDockedWidget <id>  # toggle a docked panel
 ```
 
 Do that before removing the plugin, otherwise the icons stay parked in
 `plugins[]`. `omarchy-shell ozz1ee.bardock state` prints the drawer's current
 state (docked list, size, grid) if you want to see what is where.
+
+The panel toggle is for shortcuts that normally call
+`omarchy-shell shell toggle <id>`. Omarchy's shell only looks for widgets
+mounted directly on the bar, so that command cannot reach a parked widget.
+`toggleDockedWidget` targets the live widget in the drawer without opening
+the drawer first. It returns `true` when a panel was toggled and `false` if
+the id is not docked or has no panel.
 
 ## Settings
 
